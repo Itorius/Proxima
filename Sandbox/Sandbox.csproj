@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net5.0</TargetFramework>
+		<Nullable>enable</Nullable>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Proxima\Proxima.csproj" />
+		<ProjectReference Include="..\Proxima.Analyzer\Analyzer\Analyzer.csproj" />
+	</ItemGroup>
+	
+	<ItemGroup>
+		<Analyzer Include="$(SolutionDir)Proxima.Analyzer\Analyzer\bin\$(Configuration)\netstandard2.0\Analyzer.dll" />
+	</ItemGroup>
+
+	<Target Name="CopyFiles" AfterTargets="Build">
+		<Copy SourceFiles="$(OutDir)\Sandbox.dll" DestinationFiles="$(OutDir)\Sandbox_$(Configuration).dll" />
+	</Target>
+
+	<ItemGroup>
+		<AssemblyAttribute Include="System.Runtime.CompilerServices.IgnoresAccessChecksTo">
+			<_Parameter1>Proxima</_Parameter1>
+		</AssemblyAttribute>
+	</ItemGroup>
+
+</Project>

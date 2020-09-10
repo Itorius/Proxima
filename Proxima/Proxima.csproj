@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net5.0</TargetFramework>
+		<LangVersion>9</LangVersion>
+		<Nullable>annotations</Nullable>
+		<OutputType>Exe</OutputType>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="MonoMod.Utils" Version="20.8.3.5" />
+		<PackageReference Include="Silk.NET" Version="1.5.0">
+			<PrivateAssets>compile</PrivateAssets>
+		</PackageReference>
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Folder Include="Input" />
+	</ItemGroup>
+</Project>

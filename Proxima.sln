@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Proxima", "Proxima\Proxima.csproj", "{CC73E890-DEE2-428A-AFA5-07AEC1AE4AF7}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sandbox", "Sandbox\Sandbox.csproj", "{7AC4D101-E4D4-4210-B32F-B7B06BD57504}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Analyzer", "Proxima.Analyzer\Analyzer\Analyzer.csproj", "{82F71D95-2F58-434C-9251-15D8D40FA91D}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{CC73E890-DEE2-428A-AFA5-07AEC1AE4AF7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CC73E890-DEE2-428A-AFA5-07AEC1AE4AF7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CC73E890-DEE2-428A-AFA5-07AEC1AE4AF7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CC73E890-DEE2-428A-AFA5-07AEC1AE4AF7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7AC4D101-E4D4-4210-B32F-B7B06BD57504}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7AC4D101-E4D4-4210-B32F-B7B06BD57504}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7AC4D101-E4D4-4210-B32F-B7B06BD57504}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7AC4D101-E4D4-4210-B32F-B7B06BD57504}.Release|Any CPU.Build.0 = Release|Any CPU
+		{82F71D95-2F58-434C-9251-15D8D40FA91D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{82F71D95-2F58-434C-9251-15D8D40FA91D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{82F71D95-2F58-434C-9251-15D8D40FA91D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{82F71D95-2F58-434C-9251-15D8D40FA91D}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
