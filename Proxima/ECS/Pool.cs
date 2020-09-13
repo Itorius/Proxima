@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 
 // ReSharper disable AssignNullToNotNullAttribute
@@ -9,7 +10,7 @@ namespace Proxima.ECS
 {
 	public abstract class Pool
 	{
-		public const int EntitiesPerPage = 10000;
+		public const int EntitiesPerPage = 1 << 15;
 
 		public int Count => packed.Count;
 
@@ -29,10 +30,10 @@ namespace Proxima.ECS
 
 		public bool Contains(Entity entity)
 		{
-			return entity.Page < sparse.Count && sparse[(int)entity.Page][entity.Offset] != Entity.Null.ID;
+			return entity.Page < sparse.Count && sparse[entity.Page][entity.Offset] != Entity.Null.ID;
 		}
 
-		public uint GetIndex(Entity entity) => sparse[(int)entity.Page][entity.Offset];
+		public uint GetIndex(Entity entity) => sparse[entity.Page][entity.Offset];
 
 		public List<Entity>.Enumerator GetEnumerator() => packed.GetEnumerator();
 
@@ -40,8 +41,8 @@ namespace Proxima.ECS
 
 		public static (Pool min, Pool medium, Pool max) MinMax(Pool pool1, Pool pool2, Pool pool3)
 		{
-			var array = new[] { pool1, pool2, pool3};
-			
+			var array = new[] {pool1, pool2, pool3};
+
 			Array.Sort(array, (pool, pool1) => pool.Count < pool1.Count ? -1 : 1);
 
 			return (array[0], array[1], array[2]);
@@ -79,7 +80,9 @@ namespace Proxima.ECS
 
 		public T Add(Entity entity, T component)
 		{
-			Assure(entity.Page)[entity.Offset] = (uint)packed.Count; // this assigns the position of the entity in the packed array
+			Debug.Assert(!Contains(entity));
+
+			Assure(entity.Page)[entity.Offset] = (uint) packed.Count; // this assigns the position of the entity in the packed array
 
 			packed.Add(entity);
 			this.component.Add(component);
@@ -91,28 +94,26 @@ namespace Proxima.ECS
 
 		public override void Remove(Entity entity)
 		{
-			// int curr = entity.Page;
-			// int pos = entity.Offset;
-			// packed[(int)sparse[curr][pos]] = packed.Last();
-			// sparse[packed.Last().Page][packed.Last().Offset] = sparse[curr][pos];
-			// sparse[curr][pos] = Entity.Null;
-			//
-			// // this is not correct
-			//
-			//
-			//
-			// component.RemoveAt(component.Count - 1);
-			// packed.Remove(entity);
-			//
-			// OnEntityRemoved?.Invoke(entity);
+			Debug.Assert(Contains(entity));
+
+			int curr = entity.Page;
+			int pos = entity.Offset;
+			packed[(int) sparse[curr][pos]] = packed.Last();
+			sparse[packed.Last().Page][packed.Last().Offset] = sparse[curr][pos];
+			sparse[curr][pos] = Entity.Null.ID;
+
+			component.RemoveAt(component.Count - 1);
+			packed.RemoveAt(component.Count - 1);
+
+			OnEntityRemoved?.Invoke(entity);
 		}
 
 		public override void Swap(Entity lhs, Entity rhs)
 		{
 			if (lhs == rhs) return;
-			
-			int from = (int)sparse[lhs.Page][lhs.Offset];
-			int to = (int)sparse[rhs.Page][rhs.Offset];
+
+			int from = (int) sparse[lhs.Page][lhs.Offset];
+			int to = (int) sparse[rhs.Page][rhs.Offset];
 
 			Entity temp = packed[from];
 			packed[from] = packed[to];
@@ -122,8 +123,8 @@ namespace Proxima.ECS
 			component[from] = component[to];
 			component[to] = tempComponent;
 
-			sparse[lhs.Page][lhs.Offset] = (uint)to;
-			sparse[rhs.Page][rhs.Offset] = (uint)@from;
+			sparse[lhs.Page][lhs.Offset] = (uint) to;
+			sparse[rhs.Page][rhs.Offset] = (uint) from;
 		}
 
 		public void Clear()
@@ -133,7 +134,7 @@ namespace Proxima.ECS
 			component.Clear();
 		}
 
-		public T Get(Entity entity) => component[(int)sparse[entity.Page][entity.Offset]];
+		public T Get(Entity entity) => component[(int) sparse[entity.Page][entity.Offset]];
 
 		public bool TryGet(Entity entity, out T component)
 		{

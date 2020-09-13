@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Xml;
 
 namespace Proxima.ECS
 {
@@ -22,8 +21,8 @@ namespace Proxima.ECS
 
 		public readonly uint ID;
 
-		public int Page => (int)(ID / Pool.EntitiesPerPage);
-		public int Offset => (int)(ID % Pool.EntitiesPerPage);
+		public int Page => (int) (Index / Pool.EntitiesPerPage);
+		public int Offset => (int) (Index & (Pool.EntitiesPerPage - 1));
 
 		public uint Version => ID >> IndexShift;
 		public uint Index => ID & IndexMask;
@@ -32,10 +31,10 @@ namespace Proxima.ECS
 
 		internal Entity(uint index, uint version)
 		{
-			ID = index;
-			ID |= version << IndexShift;
+			ID = index | (version << IndexShift);
 		}
 
+		// todo: this should get handled by the registry
 		public T AddComponent<T>() where T : struct => Registry.GetPool<T>().Add(this, new T());
 
 		public T AddComponent<T>(params object[] args) where T : struct => throw new NotImplementedException();
@@ -49,6 +48,7 @@ namespace Proxima.ECS
 		// todo: RemoveComponent
 
 		#region Equality members
+
 		public static bool operator ==(Entity e1, Entity? e2)
 		{
 			if (e2 == null)
@@ -65,7 +65,8 @@ namespace Proxima.ECS
 
 		public override bool Equals(object obj) => obj is Entity other && Equals(other);
 
-		public override int GetHashCode() => (int)ID;
+		public override int GetHashCode() => (int) ID;
+
 		#endregion
 
 		public override string ToString() => Index == IndexMask ? "Entity [null]" : $"Entity [index: {Index}, version: {Version}]";

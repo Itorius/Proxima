@@ -35,7 +35,7 @@ namespace Proxima.ECS
 		private Pool<T1> pool1;
 		private Pool<T2> pool2;
 		private int groupIndex;
-		
+
 		internal Group()
 		{
 			pool1 = Registry.GetPool<T1>().Own();
@@ -44,15 +44,15 @@ namespace Proxima.ECS
 			pool2.OnEntityAdded += EntityAdded;
 
 			var (shortest, longest) = Pool.MinMax(pool1, pool2);
-			
+
 			for (int i = 0; i < shortest.Count; i++)
 			{
 				Entity e = shortest[i];
 				if (longest.Contains(e))
 				{
 					shortest.Swap(shortest[groupIndex], shortest[i]);
-					longest.Swap(longest[groupIndex], longest[(int)longest.GetIndex(e)]);
-					
+					longest.Swap(longest[groupIndex], longest[(int) longest.GetIndex(e)]);
+
 					groupIndex++;
 				}
 			}
