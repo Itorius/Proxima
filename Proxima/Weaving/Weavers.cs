@@ -1,6 +1,6 @@
-using Mono.Cecil;
 using System.Collections.Generic;
 using System.IO;
+using Mono.Cecil;
 
 namespace Proxima.Weaver
 {
@@ -9,6 +9,7 @@ namespace Proxima.Weaver
 		private static IEnumerable<BaseWeaver> GetWeavers()
 		{
 			yield return new ProfileWeaver();
+			yield return new LogWeaver();
 			yield return new AddComponentWeaver();
 			yield return new GetComponentWeaver();
 		}

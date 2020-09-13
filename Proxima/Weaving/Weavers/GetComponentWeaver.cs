@@ -1,12 +1,12 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.RegularExpressions;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Mono.Cecil.Rocks;
 using MonoMod.Cil;
 using MonoMod.Utils;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text.RegularExpressions;
 
 namespace Proxima.Weaver
 {
@@ -28,7 +28,7 @@ namespace Proxima.Weaver
 
 			while (cursor.TryGotoNext(MoveType.AfterLabel, i => i.MatchCallOrCallvirt(out MethodReference reference) && MatchMethodRegex.IsMatch(reference.GetID())))
 			{
-				GenericInstanceMethod call = (GenericInstanceMethod)cursor.Next.Operand;
+				GenericInstanceMethod call = (GenericInstanceMethod) cursor.Next.Operand;
 
 				if (call.GenericArguments.Count > 1) ProcessCallMultiple(methodDefinition.Module, context, cursor);
 				else ProcessCall(methodDefinition.Module, cursor);
@@ -40,13 +40,13 @@ namespace Proxima.Weaver
 		private static void ProcessCallMultiple(ModuleDefinition module, ILContext context, ILCursor cursor)
 		{
 			Instruction i_LoadView = cursor.Previous.Previous;
-			VariableDefinition v_View = (VariableDefinition)i_LoadView.Operand;
-			VariableDefinition v_Entity = (VariableDefinition)cursor.Previous.Operand;
+			VariableDefinition v_View = (VariableDefinition) i_LoadView.Operand;
+			VariableDefinition v_Entity = (VariableDefinition) cursor.Previous.Operand;
 
 			Instruction callInstruction = cursor.Next;
-			GenericInstanceMethod call = (GenericInstanceMethod)callInstruction.Operand;
+			GenericInstanceMethod call = (GenericInstanceMethod) callInstruction.Operand;
 
-			GenericInstanceType viewType = (GenericInstanceType)call.DeclaringType;
+			GenericInstanceType viewType = (GenericInstanceType) call.DeclaringType;
 			TypeDefinition viewTypeResolved = viewType.Resolve();
 
 			var componentTypes = call.GenericArguments;
@@ -64,7 +64,7 @@ namespace Proxima.Weaver
 				pools.Add(field);
 			}
 
-			var genericInstanceType = (GenericInstanceType)call.ReturnType;
+			var genericInstanceType = (GenericInstanceType) call.ReturnType;
 
 			List<VariableDefinition> variables = new List<VariableDefinition>();
 			for (int i = 0; i < genericInstanceType.GenericArguments.Count; i++)
@@ -102,8 +102,8 @@ namespace Proxima.Weaver
 
 		private static void ProcessCall(ModuleDefinition module, ILCursor cursor)
 		{
-			GenericInstanceMethod call = (GenericInstanceMethod)cursor.Next.Operand;
-			GenericInstanceType viewType = (GenericInstanceType)call.DeclaringType;
+			GenericInstanceMethod call = (GenericInstanceMethod) cursor.Next.Operand;
+			GenericInstanceType viewType = (GenericInstanceType) call.DeclaringType;
 			TypeDefinition viewTypeResolved = viewType.Resolve();
 
 			TypeReference componentType = call.GenericArguments[0];

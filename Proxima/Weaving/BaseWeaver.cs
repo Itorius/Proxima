@@ -1,7 +1,7 @@
-using Mono.Cecil;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using Mono.Cecil;
 
 namespace Proxima.Weaver
 {
@@ -16,6 +16,11 @@ namespace Proxima.Weaver
 		public abstract void Execute();
 
 		public TypeDefinition FindTypeDefinition(string fullName) => TypeCache.Get(fullName) ?? throw new NullReferenceException();
+
+		public TypeDefinition FindTypeDefinition<T>()
+		{
+			return TypeCache.Get(typeof(T).FullName) ?? throw new NullReferenceException();
+		}
 	}
 
 	internal static class TypeCache
