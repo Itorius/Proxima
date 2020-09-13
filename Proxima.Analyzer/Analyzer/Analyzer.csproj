@@ -2,7 +2,6 @@
 
 	<PropertyGroup>
 		<TargetFramework>netstandard2.0</TargetFramework>
-		<PackageTargetFallback>portable-net45+win8+wp8+wpa81</PackageTargetFallback>
 		<PackageId>Proxima.Analyzer</PackageId>
 		<Authors>Itorius</Authors>
 		<Product>Proxima Analyzer</Product>

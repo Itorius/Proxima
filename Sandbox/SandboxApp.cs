@@ -1,34 +1,32 @@
 ﻿using Proxima;
 using Proxima.ECS;
-using Proxima.Graphics;
 using Proxima.Weaver;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Linq;
 using System.Numerics;
+using Vortice.Mathematics;
 
 namespace Sandbox
 {
-	public class SandboxApp : BaseApplication
+	public class SandboxApp : Application
 	{
-		private const int TestEntities = 1000;
+		private const int TestEntities = 256;
 
-		public static BaseApplication CreateApplication()
+		public static Application CreateApplication()
 		{
-			SandboxApp app = new SandboxApp(new Window.Options
+			SandboxApp app = new SandboxApp(new Options
 			{
-				Size = new Size(1280, 720),
 				Title = "Sandbox",
+				Size = new Size(1280, 720),
 				VSync = false
 			});
 
 			// todo: this will get replaced
-			app.window.Render += Render;
-			app.window.Update += Update;
-			app.window.Load += Load;
-			app.window.Close += Close;
-
+			// app.window.Render += Render;
+			// app.window.Update += Update;
+			// app.window.Load += Load;
+			// app.window.Close += Close;
 			return app;
 		}
 
@@ -39,21 +37,21 @@ namespace Sandbox
 			Console.ResetColor();
 		}
 
-		[Profile]
+		[Profile(false)]
 		private static void Update()
 		{
-			// var view = Registry.View<TransformComponent, ColorComponent>();
-			//
-			// float count = 0;
-			//
-			// foreach (Entity entity in view)
-			// {
-			// 	// count++;
-			//
-			// 	var transformComponent = view.Get<TransformComponent>(entity);
-			// 	count += transformComponent.Transform.M11;
-			// 	// count += colorComponent.color.R;
-			// }
+			var view = Registry.View<TransformComponent, ColorComponent>();
+
+			float count = 0;
+
+			foreach (Entity entity in view)
+			{
+				var (transformComponent, colorComponent) = view.Get<TransformComponent, ColorComponent>(entity);
+				count += transformComponent.Transform.M11;
+				count += colorComponent.color.R;
+			}
+
+			Console.WriteLine(count);
 
 			// float count = 0f;
 			// var group = Registry.Group<TransformComponent, ColorComponent>();
@@ -71,35 +69,30 @@ namespace Sandbox
 		}
 
 		[Profile]
-		private static void Load()
+		private void Load()
 		{
-			Entity e = default;
-			
+			Entity e = Entity.Null;
+
 			for (int i = 0; i < TestEntities; i++)
 			{
 				e = Registry.CreateEntity($"Entity {i + 1}");
 
-				// e.AddComponent<TransformComponent>(Matrix4x4.CreateTranslation(i, 0f, 0f));
-				//
-				// if (i % 3 == 0)
-				// {
-				// 	int color = (int)((float)i / TestEntities * 255);
-				// 	e.AddComponent<ColorComponent>(Color.FromArgb(color, color, color));
-				// }
+				e.AddComponent<TransformComponent>(Matrix4x4.CreateTranslation(i, 0f, 0f));
+
+				int color = (int)((float)i / TestEntities * 255);
+				e.AddComponent<ColorComponent>(new Color(color, color, color));
 			}
-			
+
 			Registry.DestroyEntity(e);
-			Registry.CreateEntity("");
+			Registry.CreateEntity("Doot");
 		}
 
-		[Profile]
+		[Profile(false)]
 		private static void Render()
 		{
-			RenderAPI.ClearColor(Color.CornflowerBlue);
-			RenderAPI.Clear(ClearBit.ColorBufferBit);
 		}
 
-		public SandboxApp(Window.Options options) : base(options)
+		public SandboxApp(Options options) : base(options)
 		{
 		}
 	}

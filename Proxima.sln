@@ -6,6 +6,12 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sandbox", "Sandbox\Sandbox.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Analyzer", "Proxima.Analyzer\Analyzer\Analyzer.csproj", "{82F71D95-2F58-434C-9251-15D8D40FA91D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GLFW.NET", "..\glfw-net\GLFW.NET\GLFW.NET.csproj", "{3C35B91D-0460-411B-B749-3294F26BEE65}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vortice.Vulkan", "..\Vortice.Vulkan\src\Vortice.Vulkan\Vortice.Vulkan.csproj", "{7D7DF172-8148-48F8-AF60-EB45167C31D4}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Vendor", "Vendor", "{2B6E1ABD-7C06-472F-8003-792D721E403F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -24,5 +30,17 @@ Global
 		{82F71D95-2F58-434C-9251-15D8D40FA91D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{82F71D95-2F58-434C-9251-15D8D40FA91D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{82F71D95-2F58-434C-9251-15D8D40FA91D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3C35B91D-0460-411B-B749-3294F26BEE65}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3C35B91D-0460-411B-B749-3294F26BEE65}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3C35B91D-0460-411B-B749-3294F26BEE65}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3C35B91D-0460-411B-B749-3294F26BEE65}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7D7DF172-8148-48F8-AF60-EB45167C31D4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7D7DF172-8148-48F8-AF60-EB45167C31D4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7D7DF172-8148-48F8-AF60-EB45167C31D4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7D7DF172-8148-48F8-AF60-EB45167C31D4}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{3C35B91D-0460-411B-B749-3294F26BEE65} = {2B6E1ABD-7C06-472F-8003-792D721E403F}
+		{7D7DF172-8148-48F8-AF60-EB45167C31D4} = {2B6E1ABD-7C06-472F-8003-792D721E403F}
 	EndGlobalSection
 EndGlobal

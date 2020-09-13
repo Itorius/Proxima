@@ -14,10 +14,6 @@
 		<Analyzer Include="$(SolutionDir)Proxima.Analyzer\Analyzer\bin\$(Configuration)\netstandard2.0\Analyzer.dll" />
 	</ItemGroup>
 
-	<Target Name="CopyFiles" AfterTargets="Build">
-		<Copy SourceFiles="$(OutDir)\Sandbox.dll" DestinationFiles="$(OutDir)\Sandbox_$(Configuration).dll" />
-	</Target>
-
 	<ItemGroup>
 		<AssemblyAttribute Include="System.Runtime.CompilerServices.IgnoresAccessChecksTo">
 			<_Parameter1>Proxima</_Parameter1>
