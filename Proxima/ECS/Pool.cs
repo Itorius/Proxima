@@ -41,7 +41,7 @@ namespace Proxima.ECS
 
 		public static (Pool min, Pool medium, Pool max) MinMax(Pool pool1, Pool pool2, Pool pool3)
 		{
-			var array = new[] {pool1, pool2, pool3};
+			var array = new[] { pool1, pool2, pool3 };
 
 			Array.Sort(array, (pool, pool1) => pool.Count < pool1.Count ? -1 : 1);
 
@@ -82,7 +82,7 @@ namespace Proxima.ECS
 		{
 			Debug.Assert(!Contains(entity));
 
-			Assure(entity.Page)[entity.Offset] = (uint) packed.Count; // this assigns the position of the entity in the packed array
+			Assure(entity.Page)[entity.Offset] = (uint)packed.Count; // this assigns the position of the entity in the packed array
 
 			packed.Add(entity);
 			this.component.Add(component);
@@ -98,7 +98,7 @@ namespace Proxima.ECS
 
 			int curr = entity.Page;
 			int pos = entity.Offset;
-			packed[(int) sparse[curr][pos]] = packed.Last();
+			packed[(int)sparse[curr][pos]] = packed.Last();
 			sparse[packed.Last().Page][packed.Last().Offset] = sparse[curr][pos];
 			sparse[curr][pos] = Entity.Null.ID;
 
@@ -112,8 +112,8 @@ namespace Proxima.ECS
 		{
 			if (lhs == rhs) return;
 
-			int from = (int) sparse[lhs.Page][lhs.Offset];
-			int to = (int) sparse[rhs.Page][rhs.Offset];
+			int from = (int)sparse[lhs.Page][lhs.Offset];
+			int to = (int)sparse[rhs.Page][rhs.Offset];
 
 			Entity temp = packed[from];
 			packed[from] = packed[to];
@@ -123,8 +123,8 @@ namespace Proxima.ECS
 			component[from] = component[to];
 			component[to] = tempComponent;
 
-			sparse[lhs.Page][lhs.Offset] = (uint) to;
-			sparse[rhs.Page][rhs.Offset] = (uint) from;
+			sparse[lhs.Page][lhs.Offset] = (uint)to;
+			sparse[rhs.Page][rhs.Offset] = (uint)from;
 		}
 
 		public void Clear()
@@ -134,7 +134,7 @@ namespace Proxima.ECS
 			component.Clear();
 		}
 
-		public T Get(Entity entity) => component[(int) sparse[entity.Page][entity.Offset]];
+		public T Get(Entity entity) => component[(int)sparse[entity.Page][entity.Offset]];
 
 		public bool TryGet(Entity entity, out T component)
 		{

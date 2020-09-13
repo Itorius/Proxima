@@ -49,7 +49,7 @@ namespace Proxima.Weaver
 			if (list.Count > 0) yield return list;
 		}
 
-		public static void SetDeclaringType(this MethodDefinition method, TypeReference declaringType) => ((MethodReference) method).DeclaringType = declaringType;
+		public static void SetDeclaringType(this MethodDefinition method, TypeReference declaringType) => ((MethodReference)method).DeclaringType = declaringType;
 
 		public static bool IsSubclassOf(this TypeDefinition childTypeDef, TypeDefinition parentTypeDef)
 		{

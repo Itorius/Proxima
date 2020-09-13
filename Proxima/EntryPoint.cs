@@ -15,7 +15,7 @@ namespace Proxima
 
 			string path = Weavers.Patch(args[0]);
 			Assembly assembly = Assembly.LoadFrom(path);
-			
+
 			var types = assembly.GetTypes();
 			MethodInfo? entryPoint = types.Select(type => type.GetMethod("CreateApplication", BindingFlags.Public | BindingFlags.Static)).FirstOrDefault(method => method != null);
 

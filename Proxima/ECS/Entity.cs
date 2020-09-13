@@ -21,8 +21,8 @@ namespace Proxima.ECS
 
 		public readonly uint ID;
 
-		public int Page => (int) (Index / Pool.EntitiesPerPage);
-		public int Offset => (int) (Index & (Pool.EntitiesPerPage - 1));
+		public int Page => (int)(Index / Pool.EntitiesPerPage);
+		public int Offset => (int)(Index & (Pool.EntitiesPerPage - 1));
 
 		public uint Version => ID >> IndexShift;
 		public uint Index => ID & IndexMask;
@@ -65,7 +65,7 @@ namespace Proxima.ECS
 
 		public override bool Equals(object obj) => obj is Entity other && Equals(other);
 
-		public override int GetHashCode() => (int) ID;
+		public override int GetHashCode() => (int)ID;
 
 		#endregion
 

@@ -51,7 +51,7 @@ namespace Proxima.ECS
 				if (longest.Contains(e))
 				{
 					shortest.Swap(shortest[groupIndex], shortest[i]);
-					longest.Swap(longest[groupIndex], longest[(int) longest.GetIndex(e)]);
+					longest.Swap(longest[groupIndex], longest[(int)longest.GetIndex(e)]);
 
 					groupIndex++;
 				}

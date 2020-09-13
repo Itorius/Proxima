@@ -53,7 +53,7 @@ namespace Proxima.Weaver
 			cursor.Emit(OpCodes.Ldstr, methodDefinition.Name);
 			cursor.Emit(OpCodes.Stloc, methodName);
 
-			cursor.Emit(OpCodes.Ldc_I4, (bool) attribute.ConstructorArguments[0].Value ? 1 : 0);
+			cursor.Emit(OpCodes.Ldc_I4, (bool)attribute.ConstructorArguments[0].Value ? 1 : 0);
 			cursor.Emit(OpCodes.Stloc, writeToConsole);
 
 			while (cursor.TryGotoNext(MoveType.AfterLabel, i => i.MatchRet()))

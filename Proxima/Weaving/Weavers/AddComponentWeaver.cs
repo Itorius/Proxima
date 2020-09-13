@@ -45,7 +45,7 @@ namespace Proxima.Weaver
 		private void ProcessCall(ILCursor cursor, ILContext context)
 		{
 			Instruction callInstruction = cursor.Next;
-			GenericInstanceMethod method = (GenericInstanceMethod) callInstruction.Operand;
+			GenericInstanceMethod method = (GenericInstanceMethod)callInstruction.Operand;
 
 			cursor.GotoPrev(MoveType.Before, i => i.MatchLdloca(out _), i => i.MatchLdcI4(out _), i => i.MatchNewarr<object>());
 
@@ -77,7 +77,7 @@ namespace Proxima.Weaver
 				Instruction instruction = instructions.Last();
 				if (instruction.OpCode == OpCodes.Box)
 				{
-					TypeReference typeRef = (TypeReference) instruction.Operand;
+					TypeReference typeRef = (TypeReference)instruction.Operand;
 					instructions.Remove(instruction);
 
 					ctorTypes.Add(typeRef.Resolve());
@@ -100,7 +100,7 @@ namespace Proxima.Weaver
 				{
 					if (constructor.Parameters[i].ParameterType.Resolve().FullName == nullable.FullName)
 					{
-						GenericInstanceType t = (GenericInstanceType) constructor.Parameters[i].ParameterType;
+						GenericInstanceType t = (GenericInstanceType)constructor.Parameters[i].ParameterType;
 
 						flag &= t.GenericArguments[0].Resolve() == ctorTypes[i];
 					}
@@ -143,7 +143,7 @@ namespace Proxima.Weaver
 		{
 			OpCode opCode = instruction.OpCode;
 			object operand = instruction.Operand;
-			if (opCode == OpCodes.Call || opCode == OpCodes.Newobj) return ((MethodReference) operand).ReturnType;
+			if (opCode == OpCodes.Call || opCode == OpCodes.Newobj) return ((MethodReference)operand).ReturnType;
 			return FindTypeDefinition(operand.GetType().FullName);
 		}
 
