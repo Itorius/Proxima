@@ -34,12 +34,14 @@ namespace Proxima
 			{
 				if (args.Key == Keys.Escape) Glfw.SetWindowShouldClose(window, true);
 			};
-			
+
 			GraphicsDevice = new GraphicsDevice(window);
 
 			#if ENABLE_VALIDATION
 			GraphicsDevice.EnableValidation();
 			#endif
+
+			GraphicsDevice.Initialize();
 		}
 
 		private void Cleanup()
@@ -57,6 +59,9 @@ namespace Proxima
 			while (!Glfw.WindowShouldClose(window))
 			{
 				Glfw.PollEvents();
+
+				GraphicsDevice.Draw();
+
 				Thread.Sleep(20);
 			}
 

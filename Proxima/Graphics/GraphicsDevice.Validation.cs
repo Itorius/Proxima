@@ -17,7 +17,7 @@ namespace Proxima.Graphics
 		{
 			ValidationEnabled = true;
 		}
-		
+
 		private static unsafe VkBool32 DebugMessengerCallback(VkDebugUtilsMessageSeverityFlagsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageTypes, VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, IntPtr userData)
 		{
 			string message = Interop.GetString(pCallbackData->pMessage);
@@ -42,7 +42,7 @@ namespace Proxima.Graphics
 			if (!ValidationEnabled) return;
 
 			VkDebugUtilsMessengerCreateInfoEXT createInfo = CreateDebugMessengerInfo();
-			Vulkan.vkCreateDebugUtilsMessengerEXT(vkInstance, &createInfo, null, out debugMessenger).CheckResult();
+			Vulkan.vkCreateDebugUtilsMessengerEXT(Instance, &createInfo, null, out debugMessenger).CheckResult();
 		}
 
 		private VkDebugUtilsMessengerCreateInfoEXT CreateDebugMessengerInfo()
