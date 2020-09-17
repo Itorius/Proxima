@@ -2,20 +2,22 @@ using System;
 using System.Runtime.InteropServices;
 using Vortice.Vulkan;
 
-namespace Proxima
+namespace Proxima.Graphics
 {
-	public abstract partial class Application
+	public partial class GraphicsDevice
 	{
-#if ENABLE_VALIDATION
-		public static readonly bool EnableValidationLayers = true;
-#else
-		public static readonly bool EnableValidationLayers = false;
-#endif
-		
 		private static readonly VkStringArray ValidationLayers = new VkStringArray(new[] { "VK_LAYER_KHRONOS_validation" });
+
+		private bool ValidationEnabled;
 		private unsafe vkDebugUtilsMessengerCallbackEXT debugMessengerCallbackFunc = DebugMessengerCallback;
 		private VkDebugUtilsMessengerEXT debugMessenger = VkDebugUtilsMessengerEXT.Null;
 
+		// todo: allow the user to select validation levels
+		public void EnableValidation()
+		{
+			ValidationEnabled = true;
+		}
+		
 		private static unsafe VkBool32 DebugMessengerCallback(VkDebugUtilsMessageSeverityFlagsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageTypes, VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, IntPtr userData)
 		{
 			string message = Interop.GetString(pCallbackData->pMessage);
@@ -37,7 +39,7 @@ namespace Proxima
 
 		private unsafe void SetupDebugging()
 		{
-			if (!EnableValidationLayers) return;
+			if (!ValidationEnabled) return;
 
 			VkDebugUtilsMessengerCreateInfoEXT createInfo = CreateDebugMessengerInfo();
 			Vulkan.vkCreateDebugUtilsMessengerEXT(vkInstance, &createInfo, null, out debugMessenger).CheckResult();
@@ -49,13 +51,13 @@ namespace Proxima
 			{
 				sType = VkStructureType.DebugUtilsMessengerCreateInfoEXT,
 				messageSeverity = VkDebugUtilsMessageSeverityFlagsEXT.Verbose | VkDebugUtilsMessageSeverityFlagsEXT.Warning | VkDebugUtilsMessageSeverityFlagsEXT.Error,
-				messageType = VkDebugUtilsMessageTypeFlagsEXT.General | VkDebugUtilsMessageTypeFlagsEXT.Validation | VkDebugUtilsMessageTypeFlagsEXT.Performance,
+				messageType = VkDebugUtilsMessageTypeFlagsEXT.Validation | VkDebugUtilsMessageTypeFlagsEXT.Performance,
 				pfnUserCallback = Marshal.GetFunctionPointerForDelegate(debugMessengerCallbackFunc)
 			};
 			return createInfo;
 		}
 
-		private static bool CheckValidationLayerSupport()
+		private static bool IsValidationSupported()
 		{
 			ReadOnlySpan<VkLayerProperties> properties = Vulkan.vkEnumerateInstanceLayerProperties();
 
