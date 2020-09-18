@@ -244,5 +244,3 @@ ModelManifest.xml
 
 # FAKE - F# Make
 .fake/
-
-**/*.spv

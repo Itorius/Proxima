@@ -33,10 +33,10 @@ namespace Proxima.Graphics
 		private NativeWindow window;
 
 		private VkInstance Instance;
-		private VkPhysicalDevice PhysicalDevice;
-		private VkDevice LogicalDevice;
+		internal VkPhysicalDevice PhysicalDevice;
+		internal VkDevice LogicalDevice;
 
-		private VkQueue GraphicsQueue;
+		internal VkQueue GraphicsQueue;
 		private VkQueue PresentQueue;
 
 		private VkSurfaceKHR Surface;
@@ -51,7 +51,7 @@ namespace Proxima.Graphics
 		private VkPipeline GraphicsPipeline;
 
 		private VkFramebuffer[] SwapchainFramebuffers;
-		private VkCommandPool CommandPool;
+		internal VkCommandPool CommandPool;
 		private VkCommandBuffer[] CommandBuffers;
 
 		private const int MaxFramesInFlight = 2;
@@ -105,21 +105,8 @@ namespace Proxima.Graphics
 			}
 		}
 
-		private static readonly Vertex[] vertices =
-		{
-			new Vertex(-0.5f, -0.5f, 1f, 0f, 0f),
-			new Vertex(0.5f, -0.5f, 0f, 1f, 0f),
-			new Vertex(0.5f, 0.5f, 0f, 0f, 1f),
-			new Vertex(-0.5f, 0.5f, 1f, 1f, 1f)
-		};
-
-		private static readonly uint[] indices = { 0, 1, 2, 2, 3, 0 };
-
-		private VkBuffer VertexBuffer;
-		private VkDeviceMemory VertexBufferMemory;
-
-		private VkBuffer IndexBuffer;
-		private VkDeviceMemory IndexBufferMemory;
+		private VertexBuffer<Vertex> VertexBuffer;
+		private IndexBuffer<ushort> IndexBuffer;
 
 		public GraphicsDevice(NativeWindow window)
 		{
@@ -155,8 +142,16 @@ namespace Proxima.Graphics
 
 			CreateCommandPool();
 
-			CreateVertexBuffer();
-			CreateIndexBuffer();
+			// CreateVertexBuffer();
+
+			VertexBuffer = new VertexBuffer<Vertex>(this, new[]
+			{
+				new Vertex(-0.5f, -0.5f, 1f, 0f, 0f),
+				new Vertex(0.5f, -0.5f, 0f, 1f, 0f),
+				new Vertex(0.5f, 0.5f, 0f, 0f, 1f),
+				new Vertex(-0.5f, 0.5f, 1f, 1f, 1f)
+			});
+			IndexBuffer = new IndexBuffer<ushort>(this, new ushort[] { 0, 1, 2, 2, 3, 0 });
 
 			CreateCommandBuffers();
 
@@ -636,131 +631,6 @@ namespace Proxima.Graphics
 			Vulkan.vkCreateCommandPool(LogicalDevice, &commandPoolCreateInfo, null, out CommandPool).CheckResult();
 		}
 
-		private unsafe (VkBuffer, VkDeviceMemory) CreateBuffer(ulong size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties)
-		{
-			VkBufferCreateInfo bufferCreateInfo = new VkBufferCreateInfo
-			{
-				sType = VkStructureType.BufferCreateInfo,
-				size = size,
-				usage = usage,
-				sharingMode = VkSharingMode.Exclusive
-			};
-
-			Vulkan.vkCreateBuffer(LogicalDevice, &bufferCreateInfo, null, out VkBuffer buffer).CheckResult();
-
-			Vulkan.vkGetBufferMemoryRequirements(LogicalDevice, buffer, out VkMemoryRequirements memoryRequirements);
-
-			VkMemoryAllocateInfo allocateInfo = new VkMemoryAllocateInfo
-			{
-				sType = VkStructureType.MemoryAllocateInfo,
-				allocationSize = memoryRequirements.size,
-				memoryTypeIndex = FindMemoryType(memoryRequirements.memoryTypeBits, VkMemoryPropertyFlags.HostVisible | VkMemoryPropertyFlags.HostCoherent)
-			};
-
-			VkDeviceMemory bufferMemory;
-			Vulkan.vkAllocateMemory(LogicalDevice, &allocateInfo, null, &bufferMemory).CheckResult();
-
-			Vulkan.vkBindBufferMemory(LogicalDevice, buffer, bufferMemory, 0).CheckResult();
-
-			return (buffer, bufferMemory);
-		}
-
-		private unsafe void CreateVertexBuffer()
-		{
-			ulong bufferSize = (ulong)(sizeof(Vertex) * vertices.Length);
-			var (stagingBuffer, stagingBufferMemory) = CreateBuffer(bufferSize, VkBufferUsageFlags.TransferSrc, VkMemoryPropertyFlags.HostVisible | VkMemoryPropertyFlags.HostCoherent);
-
-			void* data = null;
-			Vulkan.vkMapMemory(LogicalDevice, stagingBufferMemory, 0, bufferSize, 0, &data);
-			fixed (Vertex* ptr = &vertices[0]) Buffer.MemoryCopy(ptr, data, bufferSize, bufferSize);
-			Vulkan.vkUnmapMemory(LogicalDevice, stagingBufferMemory);
-
-			var (vkBuffer, vkDeviceMemory) = CreateBuffer(bufferSize, VkBufferUsageFlags.TransferDst | VkBufferUsageFlags.VertexBuffer, VkMemoryPropertyFlags.DeviceLocal);
-			VertexBuffer = vkBuffer;
-			VertexBufferMemory = vkDeviceMemory;
-
-			CopyBuffer(stagingBuffer, VertexBuffer, bufferSize);
-
-			Vulkan.vkDestroyBuffer(LogicalDevice, stagingBuffer, null);
-			Vulkan.vkFreeMemory(LogicalDevice, stagingBufferMemory, null);
-		}
-
-		private unsafe void CreateIndexBuffer()
-		{
-			ulong bufferSize = (ulong)(sizeof(uint) * indices.Length);
-			var (stagingBuffer, stagingBufferMemory) = CreateBuffer(bufferSize, VkBufferUsageFlags.TransferSrc, VkMemoryPropertyFlags.HostVisible | VkMemoryPropertyFlags.HostCoherent);
-
-			void* data = null;
-			Vulkan.vkMapMemory(LogicalDevice, stagingBufferMemory, 0, bufferSize, 0, &data);
-			fixed (uint* ptr = &indices[0]) Buffer.MemoryCopy(ptr, data, bufferSize, bufferSize);
-			Vulkan.vkUnmapMemory(LogicalDevice, stagingBufferMemory);
-
-			var (vkBuffer, vkDeviceMemory) = CreateBuffer(bufferSize, VkBufferUsageFlags.TransferDst | VkBufferUsageFlags.IndexBuffer, VkMemoryPropertyFlags.DeviceLocal);
-			IndexBuffer = vkBuffer;
-			IndexBufferMemory = vkDeviceMemory;
-
-			CopyBuffer(stagingBuffer, IndexBuffer, bufferSize);
-
-			Vulkan.vkDestroyBuffer(LogicalDevice, stagingBuffer, null);
-			Vulkan.vkFreeMemory(LogicalDevice, stagingBufferMemory, null);
-		}
-
-		private unsafe void CopyBuffer(VkBuffer src, VkBuffer dst, ulong size)
-		{
-			VkCommandBufferAllocateInfo allocateInfo = new VkCommandBufferAllocateInfo
-			{
-				sType = VkStructureType.CommandBufferAllocateInfo,
-				level = VkCommandBufferLevel.Primary,
-				commandPool = CommandPool,
-				commandBufferCount = 1
-			};
-
-			Vulkan.vkAllocateCommandBuffers(LogicalDevice, &allocateInfo, out VkCommandBuffer commandBuffer).CheckResult();
-
-			VkCommandBufferBeginInfo beginInfo = new VkCommandBufferBeginInfo
-			{
-				sType = VkStructureType.CommandBufferBeginInfo,
-				flags = VkCommandBufferUsageFlags.OneTimeSubmit
-			};
-
-			Vulkan.vkBeginCommandBuffer(commandBuffer, &beginInfo).CheckResult();
-
-			VkBufferCopy copyRegion = new VkBufferCopy
-			{
-				srcOffset = 0,
-				dstOffset = 0,
-				size = size
-			};
-
-			Vulkan.vkCmdCopyBuffer(commandBuffer, src, dst, 1, &copyRegion);
-
-			Vulkan.vkEndCommandBuffer(commandBuffer);
-
-			VkSubmitInfo submitInfo = new VkSubmitInfo
-			{
-				sType = VkStructureType.SubmitInfo,
-				commandBufferCount = 1,
-				pCommandBuffers = &commandBuffer
-			};
-
-			Vulkan.vkQueueSubmit(GraphicsQueue, submitInfo, VkFence.Null);
-			Vulkan.vkQueueWaitIdle(GraphicsQueue);
-
-			Vulkan.vkFreeCommandBuffers(LogicalDevice, CommandPool, commandBuffer);
-		}
-
-		private uint FindMemoryType(uint typeFilter, VkMemoryPropertyFlags properties)
-		{
-			Vulkan.vkGetPhysicalDeviceMemoryProperties(PhysicalDevice, out VkPhysicalDeviceMemoryProperties memoryProperties);
-
-			for (uint i = 0; i < memoryProperties.memoryTypeCount; i++)
-			{
-				if ((typeFilter & (1 << (int)i)) != 0 && (memoryProperties.GetMemoryType(i).propertyFlags & properties) == properties) return i;
-			}
-
-			throw new Exception("Failed to find suitable memory type");
-		}
-
 		private unsafe void CreateCommandBuffers()
 		{
 			CommandBuffers = new VkCommandBuffer[SwapchainFramebuffers.Length];
@@ -802,10 +672,10 @@ namespace Proxima.Graphics
 
 				Vulkan.vkCmdBindPipeline(CommandBuffers[i], VkPipelineBindPoint.Graphics, GraphicsPipeline);
 
-				Vulkan.vkCmdBindVertexBuffers(CommandBuffers[i], 0, VertexBuffer);
-				Vulkan.vkCmdBindIndexBuffer(CommandBuffers[i], IndexBuffer, 0, VkIndexType.Uint32);
+				Vulkan.vkCmdBindVertexBuffers(CommandBuffers[i], 0, VertexBuffer.Buffer);
+				Vulkan.vkCmdBindIndexBuffer(CommandBuffers[i], IndexBuffer.Buffer, 0, IndexBuffer.IndexType);
 
-				Vulkan.vkCmdDrawIndexed(CommandBuffers[i], (uint)indices.Length, 1, 0, 0, 0);
+				Vulkan.vkCmdDrawIndexed(CommandBuffers[i], IndexBuffer.Length, 1, 0, 0, 0);
 				Vulkan.vkCmdEndRenderPass(CommandBuffers[i]);
 
 				Vulkan.vkEndCommandBuffer(CommandBuffers[i]).CheckResult();
@@ -934,11 +804,8 @@ namespace Proxima.Graphics
 
 			CleanupSwapchain();
 
-			Vulkan.vkDestroyBuffer(LogicalDevice, VertexBuffer, null);
-			Vulkan.vkFreeMemory(LogicalDevice, VertexBufferMemory, null);
-
-			Vulkan.vkDestroyBuffer(LogicalDevice, IndexBuffer, null);
-			Vulkan.vkFreeMemory(LogicalDevice, IndexBufferMemory, null);
+			VertexBuffer.Dispose();
+			IndexBuffer.Dispose();
 
 			for (int i = 0; i < MaxFramesInFlight; i++)
 			{
