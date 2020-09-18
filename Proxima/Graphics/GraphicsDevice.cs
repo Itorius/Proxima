@@ -53,9 +53,15 @@ namespace Proxima.Graphics
 		private VkCommandPool CommandPool;
 		private VkCommandBuffer[] CommandBuffers;
 
-		private VkSemaphore RenderFinishedSemaphore;
-		private VkSemaphore ImageAvailableSemaphore;
+		private const int MaxFramesInFlight = 2;
+		private VkSemaphore[] RenderFinishedSemaphores;
+		private VkSemaphore[] ImageAvailableSemaphores;
+		private VkFence[] InFlightFences;
+		private VkFence[] ImagesInFlight;
 
+		private int currentFrame;
+		private bool framebufferResized;
+		
 		public GraphicsDevice(NativeWindow window)
 		{
 			this.window = window;
@@ -65,6 +71,8 @@ namespace Proxima.Graphics
 		{
 			if (Vulkan.Initialize() != VkResult.Success) throw new Exception("Failed to initialize Vulkan");
 			if (ValidationEnabled && !IsValidationSupported()) throw new Exception("Validation layers requested, but not available");
+
+			window.SizeChanged += (sender, args) => { framebufferResized = true; };
 
 			CreateInstance();
 
@@ -90,7 +98,7 @@ namespace Proxima.Graphics
 
 			CreateCommandBuffers();
 
-			CreateSemaphores();
+			CreateSyncObjects();
 		}
 
 		private unsafe void CreateInstance()
@@ -610,22 +618,77 @@ namespace Proxima.Graphics
 			}
 		}
 
-		private unsafe void CreateSemaphores()
+		private unsafe void CreateSyncObjects()
 		{
-			VkSemaphoreCreateInfo semaphoreCreateInfo = new VkSemaphoreCreateInfo
+			ImageAvailableSemaphores = new VkSemaphore[MaxFramesInFlight];
+			RenderFinishedSemaphores = new VkSemaphore[MaxFramesInFlight];
+			InFlightFences = new VkFence[MaxFramesInFlight];
+			ImagesInFlight = Enumerable.Repeat(VkFence.Null, SwapchainImages.Length).ToArray();
+
+			VkSemaphoreCreateInfo semaphoreCreateInfo = new VkSemaphoreCreateInfo { sType = VkStructureType.SemaphoreCreateInfo };
+			VkFenceCreateInfo fenceCreateInfo = new VkFenceCreateInfo
 			{
-				sType = VkStructureType.SemaphoreCreateInfo
+				sType = VkStructureType.FenceCreateInfo,
+				flags = VkFenceCreateFlags.Signaled
 			};
 
-			Vulkan.vkCreateSemaphore(LogicalDevice, &semaphoreCreateInfo, null, out ImageAvailableSemaphore).CheckResult();
-			Vulkan.vkCreateSemaphore(LogicalDevice, &semaphoreCreateInfo, null, out RenderFinishedSemaphore).CheckResult();
+			for (int i = 0; i < MaxFramesInFlight; i++)
+			{
+				Vulkan.vkCreateSemaphore(LogicalDevice, &semaphoreCreateInfo, null, out ImageAvailableSemaphores[i]).CheckResult();
+				Vulkan.vkCreateSemaphore(LogicalDevice, &semaphoreCreateInfo, null, out RenderFinishedSemaphores[i]).CheckResult();
+				Vulkan.vkCreateFence(LogicalDevice, &fenceCreateInfo, null, out InFlightFences[i]).CheckResult();
+			}
+		}
+
+		private unsafe void CleanupSwapchain()
+		{
+			foreach (VkFramebuffer framebuffer in SwapchainFramebuffers) Vulkan.vkDestroyFramebuffer(LogicalDevice, framebuffer, null);
+
+			fixed (VkCommandBuffer* ptr = &CommandBuffers[0]) Vulkan.vkFreeCommandBuffers(LogicalDevice, CommandPool, (uint)CommandBuffers.Length, ptr);
+
+			Vulkan.vkDestroyPipeline(LogicalDevice, GraphicsPipeline, null);
+			Vulkan.vkDestroyPipelineLayout(LogicalDevice, PipelineLayout, null);
+			Vulkan.vkDestroyRenderPass(LogicalDevice, RenderPass, null);
+
+			foreach (VkImageView imageView in SwapchainImageViews) Vulkan.vkDestroyImageView(LogicalDevice, imageView, null);
+
+			Vulkan.vkDestroySwapchainKHR(LogicalDevice, Swapchain, null);
+		}
+
+		private void RecreateSwapchain()
+		{
+			while (window.Size.Width == 0 || window.Size.Height == 0) Glfw.WaitEvents();
+
+			Vulkan.vkDeviceWaitIdle(LogicalDevice);
+
+			CleanupSwapchain();
+
+			CreateSwapchain();
+			CreateImageViews();
+			CreateRenderPass();
+			CreateGraphicsPipeline();
+			CreateFramebuffers();
+			CreateCommandBuffers();
 		}
 
 		public unsafe void Draw()
 		{
-			Vulkan.vkAcquireNextImageKHR(LogicalDevice, Swapchain, uint.MaxValue, ImageAvailableSemaphore, VkFence.Null, out uint imageIndex);
+			Vulkan.vkWaitForFences(LogicalDevice, InFlightFences[currentFrame], true, ulong.MaxValue);
 
-			VkSemaphore[] waitSemaphores = { ImageAvailableSemaphore };
+			VkResult result = Vulkan.vkAcquireNextImageKHR(LogicalDevice, Swapchain, uint.MaxValue, ImageAvailableSemaphores[currentFrame], VkFence.Null, out uint imageIndex);
+			if (result == VkResult.ErrorOutOfDateKHR)
+			{
+				RecreateSwapchain();
+				return;
+			}
+
+			if (result != VkResult.Success && result != VkResult.SuboptimalKHR) throw new Exception("Failed to acquire swapchain image");
+
+			if (ImagesInFlight[imageIndex] != VkFence.Null) Vulkan.vkWaitForFences(LogicalDevice, ImagesInFlight[imageIndex], true, uint.MaxValue);
+
+			ImagesInFlight[imageIndex] = InFlightFences[currentFrame];
+
+			VkSemaphore[] waitSemaphores = { ImageAvailableSemaphores[currentFrame] };
 			VkPipelineStageFlags[] waitStages = { VkPipelineStageFlags.ColorAttachmentOutput };
 
 			VkSubmitInfo submitInfo = new VkSubmitInfo
@@ -639,10 +702,12 @@ namespace Proxima.Graphics
 			fixed (VkPipelineStageFlags* ptr = &waitStages[0]) submitInfo.pWaitDstStageMask = ptr;
 			fixed (VkCommandBuffer* ptr = &CommandBuffers[imageIndex]) submitInfo.pCommandBuffers = ptr;
 
-			VkSemaphore[] signalSemaphores = { RenderFinishedSemaphore };
+			VkSemaphore[] signalSemaphores = { RenderFinishedSemaphores[currentFrame] };
 			fixed (VkSemaphore* ptr = &signalSemaphores[0]) submitInfo.pSignalSemaphores = ptr;
 
-			Vulkan.vkQueueSubmit(GraphicsQueue, 1, &submitInfo, VkFence.Null).CheckResult();
+			Vulkan.vkResetFences(LogicalDevice, InFlightFences[currentFrame]);
+
+			Vulkan.vkQueueSubmit(GraphicsQueue, 1, &submitInfo, InFlightFences[currentFrame]).CheckResult();
 
 			VkPresentInfoKHR presentInfo = new VkPresentInfoKHR
 			{
@@ -657,27 +722,33 @@ namespace Proxima.Graphics
 			VkSwapchainKHR[] swapchains = { Swapchain };
 			fixed (VkSwapchainKHR* ptr = &swapchains[0]) presentInfo.pSwapchains = ptr;
 
-			Vulkan.vkQueuePresentKHR(PresentQueue, &presentInfo).CheckResult();
+			result = Vulkan.vkQueuePresentKHR(PresentQueue, &presentInfo);
+
+			if (result == VkResult.ErrorOutOfDateKHR || result == VkResult.SuboptimalKHR || framebufferResized)
+			{
+				framebufferResized = false;
+				RecreateSwapchain();
+			}
+			else if (result != VkResult.Success) throw new Exception("Failed to present swapchain image");
+
+			currentFrame = (currentFrame + 1) % MaxFramesInFlight;
 		}
 
 		public unsafe void Dispose()
 		{
 			Vulkan.vkDeviceWaitIdle(LogicalDevice);
 
-			Vulkan.vkDestroySemaphore(LogicalDevice, RenderFinishedSemaphore, null);
-			Vulkan.vkDestroySemaphore(LogicalDevice, ImageAvailableSemaphore, null);
+			CleanupSwapchain();
+
+			for (int i = 0; i < MaxFramesInFlight; i++)
+			{
+				Vulkan.vkDestroySemaphore(LogicalDevice, RenderFinishedSemaphores[i], null);
+				Vulkan.vkDestroySemaphore(LogicalDevice, ImageAvailableSemaphores[i], null);
+				Vulkan.vkDestroyFence(LogicalDevice, InFlightFences[i], null);
+			}
 
 			Vulkan.vkDestroyCommandPool(LogicalDevice, CommandPool, null);
 
-			foreach (VkFramebuffer framebuffer in SwapchainFramebuffers) Vulkan.vkDestroyFramebuffer(LogicalDevice, framebuffer, null);
-
-			Vulkan.vkDestroyPipeline(LogicalDevice, GraphicsPipeline, null);
-			Vulkan.vkDestroyPipelineLayout(LogicalDevice, PipelineLayout, null);
-			Vulkan.vkDestroyRenderPass(LogicalDevice, RenderPass, null);
-
-			foreach (VkImageView imageView in SwapchainImageViews) Vulkan.vkDestroyImageView(LogicalDevice, imageView, null);
-
-			Vulkan.vkDestroySwapchainKHR(LogicalDevice, Swapchain, null);
 			Vulkan.vkDestroySurfaceKHR(Instance, Surface, null);
 
 			if (ValidationEnabled) Vulkan.vkDestroyDebugUtilsMessengerEXT(Instance, debugMessenger, null);

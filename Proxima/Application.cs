@@ -1,10 +1,8 @@
-using System.Threading;
 using GLFW;
 using NLog;
 using Proxima.Graphics;
 using Vortice.Mathematics;
 using Exception = System.Exception;
-using Monitor = GLFW.Monitor;
 
 namespace Proxima
 {
@@ -26,7 +24,6 @@ namespace Proxima
 			if (!Vulkan.IsSupported) throw new Exception("GLFW does not support Vulkan");
 
 			Glfw.WindowHint(Hint.ClientApi, ClientApi.None);
-			Glfw.WindowHint(Hint.Resizable, Constants.False);
 			Log.Debug(Glfw.Version);
 
 			window = new NativeWindow(options.Size.Width, options.Size.Height, options.Title, Monitor.None, Window.None);
@@ -61,8 +58,6 @@ namespace Proxima
 				Glfw.PollEvents();
 
 				GraphicsDevice.Draw();
-
-				Thread.Sleep(20);
 			}
 
 			Cleanup();
