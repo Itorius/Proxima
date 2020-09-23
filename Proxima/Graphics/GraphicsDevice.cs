@@ -6,6 +6,7 @@ using System.Numerics;
 using GLFW;
 using Vortice.Mathematics;
 using Vortice.Vulkan;
+using Color = System.Drawing.Color;
 using Exception = System.Exception;
 using Vulkan = Vortice.Vulkan.Vulkan;
 
@@ -47,6 +48,7 @@ namespace Proxima.Graphics
 		private VkImageView[] SwapchainImageViews;
 
 		private VkRenderPass RenderPass;
+		private VkDescriptorSetLayout DescriptorSetLayout;
 		private VkPipelineLayout PipelineLayout;
 		private VkPipeline GraphicsPipeline;
 
@@ -107,6 +109,10 @@ namespace Proxima.Graphics
 
 		private VertexBuffer<Vertex> VertexBuffer;
 		private IndexBuffer<ushort> IndexBuffer;
+		private UniformBuffer<UniformBufferObject>[] UniformBuffers;
+
+		private VkDescriptorPool DescriptorPool;
+		private VkDescriptorSet[] DescriptorSets;
 
 		public GraphicsDevice(NativeWindow window)
 		{
@@ -136,13 +142,13 @@ namespace Proxima.Graphics
 
 			CreateRenderPass();
 
+			CreateDescriptorSetLayout();
+
 			CreateGraphicsPipeline();
 
 			CreateFramebuffers();
 
 			CreateCommandPool();
-
-			// CreateVertexBuffer();
 
 			VertexBuffer = new VertexBuffer<Vertex>(this, new[]
 			{
@@ -151,7 +157,14 @@ namespace Proxima.Graphics
 				new Vertex(0.5f, 0.5f, 0f, 0f, 1f),
 				new Vertex(-0.5f, 0.5f, 1f, 1f, 1f)
 			});
+
 			IndexBuffer = new IndexBuffer<ushort>(this, new ushort[] { 0, 1, 2, 2, 3, 0 });
+
+			UniformBuffers = new UniformBuffer<UniformBufferObject>[SwapchainImages.Length];
+			for (int i = 0; i < UniformBuffers.Length; i++) UniformBuffers[i] = new UniformBuffer<UniformBufferObject>(this);
+
+			CreateDescriptorPool();
+			CreateDescriptorSets();
 
 			CreateCommandBuffers();
 
@@ -442,6 +455,84 @@ namespace Proxima.Graphics
 			Vulkan.vkCreateRenderPass(LogicalDevice, &renderPassCreateInfo, null, out RenderPass).CheckResult();
 		}
 
+		private unsafe void CreateDescriptorSetLayout()
+		{
+			VkDescriptorSetLayoutBinding uboLayoutBinding = new VkDescriptorSetLayoutBinding
+			{
+				binding = 0,
+				descriptorType = VkDescriptorType.UniformBuffer,
+				descriptorCount = 1,
+				stageFlags = VkShaderStageFlags.Vertex
+			};
+
+			VkDescriptorSetLayoutCreateInfo layoutCreateInfo = new VkDescriptorSetLayoutCreateInfo
+			{
+				sType = VkStructureType.DescriptorSetLayoutCreateInfo,
+				bindingCount = 1,
+				pBindings = &uboLayoutBinding
+			};
+
+			Vulkan.vkCreateDescriptorSetLayout(LogicalDevice, &layoutCreateInfo, null, out DescriptorSetLayout).CheckResult();
+		}
+
+		private unsafe void CreateDescriptorPool()
+		{
+			VkDescriptorPoolSize poolSize = new VkDescriptorPoolSize
+			{
+				type = VkDescriptorType.UniformBuffer,
+				descriptorCount = (uint)UniformBuffers.Length
+			};
+
+			VkDescriptorPoolCreateInfo poolCreateInfo = new VkDescriptorPoolCreateInfo
+			{
+				sType = VkStructureType.DescriptorPoolCreateInfo,
+				poolSizeCount = 1,
+				pPoolSizes = &poolSize,
+				maxSets = (uint)UniformBuffers.Length
+			};
+
+			Vulkan.vkCreateDescriptorPool(LogicalDevice, &poolCreateInfo, null, out DescriptorPool).CheckResult();
+		}
+
+		private unsafe void CreateDescriptorSets()
+		{
+			VkDescriptorSetLayout[] layouts = Enumerable.Repeat(DescriptorSetLayout, SwapchainImages.Length).ToArray();
+
+			VkDescriptorSetAllocateInfo allocateInfo = new VkDescriptorSetAllocateInfo
+			{
+				sType = VkStructureType.DescriptorSetAllocateInfo,
+				descriptorPool = DescriptorPool,
+				descriptorSetCount = (uint)SwapchainImages.Length
+			};
+			fixed (VkDescriptorSetLayout* ptr = &layouts[0]) allocateInfo.pSetLayouts = ptr;
+
+			DescriptorSets = new VkDescriptorSet[SwapchainImages.Length];
+			fixed (VkDescriptorSet* ptr = &DescriptorSets[0]) Vulkan.vkAllocateDescriptorSets(LogicalDevice, &allocateInfo, ptr).CheckResult();
+
+			for (int i = 0; i < DescriptorSets.Length; i++)
+			{
+				VkDescriptorBufferInfo bufferInfo = new VkDescriptorBufferInfo
+				{
+					buffer = UniformBuffers[i].Buffer,
+					offset = 0,
+					range = UniformBuffers[i].Size
+				};
+
+				VkWriteDescriptorSet writeDescriptorSet = new VkWriteDescriptorSet
+				{
+					sType = VkStructureType.WriteDescriptorSet,
+					dstSet = DescriptorSets[i],
+					dstBinding = 0,
+					dstArrayElement = 0,
+					descriptorType = VkDescriptorType.UniformBuffer,
+					descriptorCount = 1,
+					pBufferInfo = &bufferInfo
+				};
+
+				Vulkan.vkUpdateDescriptorSets(LogicalDevice, writeDescriptorSet);
+			}
+		}
+
 		private unsafe void CreateGraphicsPipeline()
 		{
 			var vertex = File.ReadAllBytes("Assets/vert.spv");
@@ -507,7 +598,7 @@ namespace Proxima.Graphics
 				polygonMode = VkPolygonMode.Fill,
 				lineWidth = 1f,
 				cullMode = VkCullModeFlags.Back,
-				frontFace = VkFrontFace.Clockwise,
+				frontFace = VkFrontFace.CounterClockwise,
 				depthBiasEnable = false,
 				depthBiasConstantFactor = 0f,
 				depthBiasClamp = 0f,
@@ -559,11 +650,11 @@ namespace Proxima.Graphics
 			VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = new VkPipelineLayoutCreateInfo
 			{
 				sType = VkStructureType.PipelineLayoutCreateInfo,
-				setLayoutCount = 0,
-				pSetLayouts = null,
+				setLayoutCount = 1,
 				pushConstantRangeCount = 0,
 				pPushConstantRanges = null
 			};
+			fixed (VkDescriptorSetLayout* ptr = &DescriptorSetLayout) pipelineLayoutCreateInfo.pSetLayouts = ptr;
 
 			Vulkan.vkCreatePipelineLayout(LogicalDevice, &pipelineLayoutCreateInfo, null, out PipelineLayout).CheckResult();
 
@@ -656,7 +747,7 @@ namespace Proxima.Graphics
 
 				Vulkan.vkBeginCommandBuffer(CommandBuffers[i], &beginInfo).CheckResult();
 
-				Color4 clearColor = new Color4(0.2f, 0.2f, 0.2f, 1f);
+				Color4 clearColor = new Color4(Color.Black);
 
 				VkRenderPassBeginInfo renderPassBeginInfo = new VkRenderPassBeginInfo
 				{
@@ -674,6 +765,8 @@ namespace Proxima.Graphics
 
 				Vulkan.vkCmdBindVertexBuffers(CommandBuffers[i], 0, VertexBuffer.Buffer);
 				Vulkan.vkCmdBindIndexBuffer(CommandBuffers[i], IndexBuffer.Buffer, 0, IndexBuffer.IndexType);
+
+				Vulkan.vkCmdBindDescriptorSets(CommandBuffers[i], VkPipelineBindPoint.Graphics, PipelineLayout, 0, DescriptorSets[i]);
 
 				Vulkan.vkCmdDrawIndexed(CommandBuffers[i], IndexBuffer.Length, 1, 0, 0, 0);
 				Vulkan.vkCmdEndRenderPass(CommandBuffers[i]);
@@ -710,11 +803,15 @@ namespace Proxima.Graphics
 
 			fixed (VkCommandBuffer* ptr = &CommandBuffers[0]) Vulkan.vkFreeCommandBuffers(LogicalDevice, CommandPool, (uint)CommandBuffers.Length, ptr);
 
+			Vulkan.vkDestroyDescriptorPool(LogicalDevice, DescriptorPool, null);
+
 			Vulkan.vkDestroyPipeline(LogicalDevice, GraphicsPipeline, null);
 			Vulkan.vkDestroyPipelineLayout(LogicalDevice, PipelineLayout, null);
 			Vulkan.vkDestroyRenderPass(LogicalDevice, RenderPass, null);
 
 			foreach (VkImageView imageView in SwapchainImageViews) Vulkan.vkDestroyImageView(LogicalDevice, imageView, null);
+
+			foreach (UniformBuffer<UniformBufferObject> buffer in UniformBuffers) buffer.Dispose();
 
 			Vulkan.vkDestroySwapchainKHR(LogicalDevice, Swapchain, null);
 		}
@@ -732,6 +829,13 @@ namespace Proxima.Graphics
 			CreateRenderPass();
 			CreateGraphicsPipeline();
 			CreateFramebuffers();
+
+			UniformBuffers = new UniformBuffer<UniformBufferObject>[SwapchainImages.Length];
+			for (int i = 0; i < UniformBuffers.Length; i++) UniformBuffers[i] = new UniformBuffer<UniformBufferObject>(this);
+
+			CreateDescriptorPool();
+			CreateDescriptorSets();
+
 			CreateCommandBuffers();
 		}
 
@@ -754,6 +858,8 @@ namespace Proxima.Graphics
 
 			VkSemaphore[] waitSemaphores = { ImageAvailableSemaphores[currentFrame] };
 			VkPipelineStageFlags[] waitStages = { VkPipelineStageFlags.ColorAttachmentOutput };
+
+			UpdateUniformBuffer(imageIndex);
 
 			VkSubmitInfo submitInfo = new VkSubmitInfo
 			{
@@ -798,11 +904,25 @@ namespace Proxima.Graphics
 			currentFrame = (currentFrame + 1) % MaxFramesInFlight;
 		}
 
+		private void UpdateUniformBuffer(uint index)
+		{
+			UniformBufferObject ubo = new UniformBufferObject();
+			ubo.Model = Matrix4x4.CreateRotationZ((float)Time.TotalUpdateTime);
+			ubo.View = Matrix4x4.CreateLookAt(new Vector3(0f, 2f, 2f), Vector3.Zero, Vector3.UnitZ);
+			ubo.Projection = Matrix4x4.CreatePerspectiveFieldOfView(MathHelper.ToRadians(45f), SwapchainExtent.Width / (float)SwapchainExtent.Height, 0.1f, 100f);
+
+			ubo.Projection.M22 *= -1;
+
+			UniformBuffers[index].SetData(ubo);
+		}
+
 		public unsafe void Dispose()
 		{
 			Vulkan.vkDeviceWaitIdle(LogicalDevice);
 
 			CleanupSwapchain();
+
+			Vulkan.vkDestroyDescriptorSetLayout(LogicalDevice, DescriptorSetLayout, null);
 
 			VertexBuffer.Dispose();
 			IndexBuffer.Dispose();

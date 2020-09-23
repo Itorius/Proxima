@@ -1,3 +1,4 @@
+using System;
 using GLFW;
 using NLog;
 using Proxima.Graphics;
@@ -53,8 +54,17 @@ namespace Proxima
 
 		internal void Run()
 		{
+			DateTime old = DateTime.Now;
+			
 			while (!Glfw.WindowShouldClose(window))
 			{
+				DateTime now = DateTime.Now;
+				TimeSpan diff = now - old;
+				old= now;
+
+				Time.DeltaUpdateTime = diff.TotalSeconds;
+				Time.TotalUpdateTime += Time.DeltaUpdateTime;
+				
 				Glfw.PollEvents();
 
 				GraphicsDevice.Draw();
