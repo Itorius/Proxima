@@ -69,11 +69,13 @@ namespace Proxima.Graphics
 		{
 			private Vector2 position;
 			private Color4 color;
+			private Vector2 uv;
 
-			public Vertex(float x, float y, float r, float g, float b)
+			public Vertex(float x, float y, float r, float g, float b, float u, float v)
 			{
 				position = new Vector2(x, y);
 				color = new Color4(r, g, b);
+				uv=new Vector2(u,v);
 			}
 
 			public static unsafe VkVertexInputBindingDescription GetBindingDescription()
@@ -89,7 +91,7 @@ namespace Proxima.Graphics
 
 			public static unsafe VkVertexInputAttributeDescription[] GetAttributeDescriptions()
 			{
-				VkVertexInputAttributeDescription[] descriptions = new VkVertexInputAttributeDescription[2];
+				VkVertexInputAttributeDescription[] descriptions = new VkVertexInputAttributeDescription[3];
 
 				ref VkVertexInputAttributeDescription description = ref descriptions[0];
 				description.binding = 0;
@@ -102,6 +104,12 @@ namespace Proxima.Graphics
 				description.location = 1;
 				description.format = VkFormat.R32G32B32A32SFloat;
 				description.offset = (uint)sizeof(Vector2);
+				
+				description = ref descriptions[2];
+				description.binding = 0;
+				description.location = 2;
+				description.format = VkFormat.R32G32SFloat;
+				description.offset = (uint)(sizeof(Vector2) + sizeof(Color4));
 
 				return descriptions;
 			}
@@ -110,6 +118,7 @@ namespace Proxima.Graphics
 		private VertexBuffer<Vertex> VertexBuffer;
 		private IndexBuffer<ushort> IndexBuffer;
 		private UniformBuffer<UniformBufferObject>[] UniformBuffers;
+		private Texture2D Texture;
 
 		private VkDescriptorPool DescriptorPool;
 		private VkDescriptorSet[] DescriptorSets;
@@ -152,16 +161,18 @@ namespace Proxima.Graphics
 
 			VertexBuffer = new VertexBuffer<Vertex>(this, new[]
 			{
-				new Vertex(-0.5f, -0.5f, 1f, 0f, 0f),
-				new Vertex(0.5f, -0.5f, 0f, 1f, 0f),
-				new Vertex(0.5f, 0.5f, 0f, 0f, 1f),
-				new Vertex(-0.5f, 0.5f, 1f, 1f, 1f)
+				new Vertex(-0.5f, -0.5f, 1f, 0f, 0f,0f,0f),
+				new Vertex(0.5f, -0.5f, 0f, 1f, 0f, 1f,0f),
+				new Vertex(0.5f, 0.5f, 0f, 0f, 1f,1f,1f),
+				new Vertex(-0.5f, 0.5f, 1f, 1f, 1f,0f,1f)
 			});
 
 			IndexBuffer = new IndexBuffer<ushort>(this, new ushort[] { 0, 1, 2, 2, 3, 0 });
 
 			UniformBuffers = new UniformBuffer<UniformBufferObject>[SwapchainImages.Length];
 			for (int i = 0; i < UniformBuffers.Length; i++) UniformBuffers[i] = new UniformBuffer<UniformBufferObject>(this);
+
+			Texture = new Texture2D(this, "Assets/Tom.png");
 
 			CreateDescriptorPool();
 			CreateDescriptorSets();
@@ -238,7 +249,7 @@ namespace Proxima.Graphics
 				bool extensionsSupported = CheckDeviceExtensionSupport(device);
 				SwapChainSupportDetails details = QuerySwapchainSupport(device, surface);
 
-				return indices.IsComplete && extensionsSupported && !details.formats.IsEmpty && !details.presentModes.IsEmpty;
+				return indices.IsComplete && extensionsSupported && !details.formats.IsEmpty && !details.presentModes.IsEmpty && features.samplerAnisotropy;
 			}
 		}
 
@@ -263,7 +274,10 @@ namespace Proxima.Graphics
 				queueCreateInfos[i++] = queueCreateInfo;
 			}
 
-			VkPhysicalDeviceFeatures deviceFeatures = new VkPhysicalDeviceFeatures();
+			VkPhysicalDeviceFeatures deviceFeatures = new VkPhysicalDeviceFeatures
+			{
+				samplerAnisotropy = true
+			};
 
 			VkDeviceCreateInfo deviceCreateInfo = new VkDeviceCreateInfo
 			{
@@ -465,31 +479,49 @@ namespace Proxima.Graphics
 				stageFlags = VkShaderStageFlags.Vertex
 			};
 
+			VkDescriptorSetLayoutBinding samplerLayoutBinding = new VkDescriptorSetLayoutBinding
+			{
+				binding = 1,
+				descriptorType = VkDescriptorType.CombinedImageSampler,
+				descriptorCount = 1,
+				stageFlags = VkShaderStageFlags.Fragment
+			};
+
+			VkDescriptorSetLayoutBinding[] bindings = { uboLayoutBinding, samplerLayoutBinding };
+
 			VkDescriptorSetLayoutCreateInfo layoutCreateInfo = new VkDescriptorSetLayoutCreateInfo
 			{
 				sType = VkStructureType.DescriptorSetLayoutCreateInfo,
-				bindingCount = 1,
-				pBindings = &uboLayoutBinding
+				bindingCount = (uint)bindings.Length
 			};
+			fixed (VkDescriptorSetLayoutBinding* ptr = &bindings[0]) layoutCreateInfo.pBindings = ptr;
 
 			Vulkan.vkCreateDescriptorSetLayout(LogicalDevice, &layoutCreateInfo, null, out DescriptorSetLayout).CheckResult();
 		}
 
 		private unsafe void CreateDescriptorPool()
 		{
-			VkDescriptorPoolSize poolSize = new VkDescriptorPoolSize
+			VkDescriptorPoolSize[] poolSizes =
 			{
-				type = VkDescriptorType.UniformBuffer,
-				descriptorCount = (uint)UniformBuffers.Length
+				new VkDescriptorPoolSize
+				{
+					type = VkDescriptorType.UniformBuffer,
+					descriptorCount = (uint)UniformBuffers.Length
+				},
+				new VkDescriptorPoolSize
+				{
+					type = VkDescriptorType.CombinedImageSampler,
+					descriptorCount = (uint)UniformBuffers.Length
+				}
 			};
 
 			VkDescriptorPoolCreateInfo poolCreateInfo = new VkDescriptorPoolCreateInfo
 			{
 				sType = VkStructureType.DescriptorPoolCreateInfo,
-				poolSizeCount = 1,
-				pPoolSizes = &poolSize,
+				poolSizeCount = (uint)poolSizes.Length,
 				maxSets = (uint)UniformBuffers.Length
 			};
+			fixed (VkDescriptorPoolSize* ptr = &poolSizes[0]) poolCreateInfo.pPoolSizes = ptr;
 
 			Vulkan.vkCreateDescriptorPool(LogicalDevice, &poolCreateInfo, null, out DescriptorPool).CheckResult();
 		}
@@ -517,19 +549,39 @@ namespace Proxima.Graphics
 					offset = 0,
 					range = UniformBuffers[i].Size
 				};
-
-				VkWriteDescriptorSet writeDescriptorSet = new VkWriteDescriptorSet
+				
+				VkDescriptorImageInfo imageInfo = new VkDescriptorImageInfo
 				{
-					sType = VkStructureType.WriteDescriptorSet,
-					dstSet = DescriptorSets[i],
-					dstBinding = 0,
-					dstArrayElement = 0,
-					descriptorType = VkDescriptorType.UniformBuffer,
-					descriptorCount = 1,
-					pBufferInfo = &bufferInfo
+					imageLayout = VkImageLayout.ShaderReadOnlyOptimal,
+					imageView = Texture.View,
+					sampler = Texture.Sampler
 				};
 
-				Vulkan.vkUpdateDescriptorSets(LogicalDevice, writeDescriptorSet);
+				VkWriteDescriptorSet[] writeDescriptorSets = new[]
+				{
+					new VkWriteDescriptorSet
+					{
+						sType = VkStructureType.WriteDescriptorSet,
+						dstSet = DescriptorSets[i],
+						dstBinding = 0,
+						dstArrayElement = 0,
+						descriptorType = VkDescriptorType.UniformBuffer,
+						descriptorCount = 1,
+						pBufferInfo = &bufferInfo
+					},
+					new VkWriteDescriptorSet
+					{
+						sType = VkStructureType.WriteDescriptorSet,
+						dstSet = DescriptorSets[i],
+						dstBinding = 1,
+						dstArrayElement = 0,
+						descriptorType = VkDescriptorType.CombinedImageSampler,
+						descriptorCount = 1,
+						pImageInfo = &imageInfo
+					}
+				};
+
+				Vulkan.vkUpdateDescriptorSets(LogicalDevice, writeDescriptorSets);
 			}
 		}
 
@@ -721,6 +773,7 @@ namespace Proxima.Graphics
 
 			Vulkan.vkCreateCommandPool(LogicalDevice, &commandPoolCreateInfo, null, out CommandPool).CheckResult();
 		}
+
 
 		private unsafe void CreateCommandBuffers()
 		{
@@ -926,6 +979,7 @@ namespace Proxima.Graphics
 
 			VertexBuffer.Dispose();
 			IndexBuffer.Dispose();
+			Texture.Dispose();
 
 			for (int i = 0; i < MaxFramesInFlight; i++)
 			{

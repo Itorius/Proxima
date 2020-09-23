@@ -12,19 +12,17 @@ namespace Proxima.Graphics
 
 	public class UniformBuffer<T> : Buffer where T : unmanaged
 	{
-		private readonly GraphicsDevice graphicsDevice;
-
 		private readonly VkDeviceMemory Memory;
 		public VkBuffer Buffer { get; }
 		public ulong Size { get; }
-		
-		public unsafe UniformBuffer(GraphicsDevice graphicsDevice)
+
+		public unsafe UniformBuffer(GraphicsDevice graphicsDevice) : base(graphicsDevice)
 		{
 			this.graphicsDevice = graphicsDevice;
 
 			Size = (ulong)sizeof(T);
 
-			var (buffer, memory) = CreateBuffer(graphicsDevice, Size, VkBufferUsageFlags.UniformBuffer, VkMemoryPropertyFlags.HostVisible | VkMemoryPropertyFlags.HostCoherent);
+			var (buffer, memory) = VulkanUtils.CreateBuffer(graphicsDevice, Size, VkBufferUsageFlags.UniformBuffer, VkMemoryPropertyFlags.HostVisible | VkMemoryPropertyFlags.HostCoherent);
 			Buffer = buffer;
 			Memory = memory;
 		}
