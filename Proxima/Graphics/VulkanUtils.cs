@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using GLFW;
 using Vortice.Mathematics;
 using Vortice.Vulkan;
@@ -104,13 +105,18 @@ namespace Proxima.Graphics
 				image = image,
 				subresourceRange = new VkImageSubresourceRange
 				{
-					aspectMask = VkImageAspectFlags.Color,
 					baseMipLevel = 0,
 					levelCount = 1,
 					baseArrayLayer = 0,
 					layerCount = 1
 				}
 			};
+			if (newLayout == VkImageLayout.DepthAttachmentOptimal)
+			{
+				barrier.subresourceRange.aspectMask = VkImageAspectFlags.Depth;
+				if (HasStencilComponent(format)) barrier.subresourceRange.aspectMask |= VkImageAspectFlags.Stencil;
+			}
+			else barrier.subresourceRange.aspectMask = VkImageAspectFlags.Color;
 
 			VkPipelineStageFlags sourceStage = VkPipelineStageFlags.None;
 			VkPipelineStageFlags destinationStage = VkPipelineStageFlags.None;
@@ -130,6 +136,14 @@ namespace Proxima.Graphics
 
 				sourceStage = VkPipelineStageFlags.Transfer;
 				destinationStage = VkPipelineStageFlags.FragmentShader;
+			}
+			else if (oldLayout == VkImageLayout.Undefined && newLayout == VkImageLayout.DepthAttachmentOptimal)
+			{
+				barrier.srcAccessMask = VkAccessFlags.None;
+				barrier.dstAccessMask = VkAccessFlags.DepthStencilAttachmentRead | VkAccessFlags.DepthStencilAttachmentWrite;
+
+				sourceStage = VkPipelineStageFlags.TopOfPipe;
+				destinationStage = VkPipelineStageFlags.EarlyFragmentTests;
 			}
 			else throw new Exception("Unsupported layout transition");
 
@@ -176,6 +190,29 @@ namespace Proxima.Graphics
 			Vulkan.vkCmdCopyBuffer(commandBuffer, src, dst, 1, &copyRegion);
 
 			EndSingleTimeCommands(graphicsDevice, commandBuffer);
+		}
+
+		public static VkFormat FindSupportedFormat(GraphicsDevice graphicsDevice, List<VkFormat> formats, VkImageTiling tiling, VkFormatFeatureFlags featureFlags)
+		{
+			foreach (VkFormat format in formats)
+			{
+				Vulkan.vkGetPhysicalDeviceFormatProperties(graphicsDevice.PhysicalDevice, format, out VkFormatProperties formatProperties);
+
+				if (tiling == VkImageTiling.Linear && (formatProperties.linearTilingFeatures & featureFlags) == featureFlags) return format;
+				if (tiling == VkImageTiling.Optimal && (formatProperties.optimalTilingFeatures & featureFlags) == featureFlags) return format;
+			}
+
+			throw new Exception("Failed to find suitable format");
+		}
+
+		public static VkFormat FindDepthFormat(GraphicsDevice graphicsDevice)
+		{
+			return FindSupportedFormat(graphicsDevice, new List<VkFormat> { VkFormat.D32SFloat, VkFormat.D32SFloatS8UInt, VkFormat.D24UNormS8UInt }, VkImageTiling.Optimal, VkFormatFeatureFlags.DepthStencilAttachment);
+		}
+
+		public static bool HasStencilComponent(VkFormat format)
+		{
+			return format == VkFormat.D32SFloatS8UInt || format == VkFormat.D24UNormS8UInt;
 		}
 	}
 }

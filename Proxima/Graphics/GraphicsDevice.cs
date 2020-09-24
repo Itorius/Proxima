@@ -67,15 +67,15 @@ namespace Proxima.Graphics
 
 		private struct Vertex
 		{
-			private Vector2 position;
+			private Vector3 position;
 			private Color4 color;
 			private Vector2 uv;
 
-			public Vertex(float x, float y, float r, float g, float b, float u, float v)
+			public Vertex(float x, float y, float z, float r, float g, float b, float u, float v)
 			{
-				position = new Vector2(x, y);
+				position = new Vector3(x, y, z);
 				color = new Color4(r, g, b);
-				uv=new Vector2(u,v);
+				uv = new Vector2(u, v);
 			}
 
 			public static unsafe VkVertexInputBindingDescription GetBindingDescription()
@@ -96,20 +96,20 @@ namespace Proxima.Graphics
 				ref VkVertexInputAttributeDescription description = ref descriptions[0];
 				description.binding = 0;
 				description.location = 0;
-				description.format = VkFormat.R32G32SFloat;
+				description.format = VkFormat.R32G32B32SFloat;
 				description.offset = 0;
 
 				description = ref descriptions[1];
 				description.binding = 0;
 				description.location = 1;
 				description.format = VkFormat.R32G32B32A32SFloat;
-				description.offset = (uint)sizeof(Vector2);
-				
+				description.offset = (uint)sizeof(Vector3);
+
 				description = ref descriptions[2];
 				description.binding = 0;
 				description.location = 2;
 				description.format = VkFormat.R32G32SFloat;
-				description.offset = (uint)(sizeof(Vector2) + sizeof(Color4));
+				description.offset = (uint)(sizeof(Vector3) + sizeof(Color4));
 
 				return descriptions;
 			}
@@ -122,6 +122,8 @@ namespace Proxima.Graphics
 
 		private VkDescriptorPool DescriptorPool;
 		private VkDescriptorSet[] DescriptorSets;
+
+		private DepthBuffer DepthBuffer;
 
 		public GraphicsDevice(NativeWindow window)
 		{
@@ -155,19 +157,24 @@ namespace Proxima.Graphics
 
 			CreateGraphicsPipeline();
 
-			CreateFramebuffers();
-
 			CreateCommandPool();
+
+			CreateFramebuffers();
 
 			VertexBuffer = new VertexBuffer<Vertex>(this, new[]
 			{
-				new Vertex(-0.5f, -0.5f, 1f, 0f, 0f,0f,0f),
-				new Vertex(0.5f, -0.5f, 0f, 1f, 0f, 1f,0f),
-				new Vertex(0.5f, 0.5f, 0f, 0f, 1f,1f,1f),
-				new Vertex(-0.5f, 0.5f, 1f, 1f, 1f,0f,1f)
+				new Vertex(-0.5f, -0.5f, 0f, 1f, 0f, 0f, 0f, 0f),
+				new Vertex(0.5f, -0.5f, 0f, 0f, 1f, 0f, 1f, 0f),
+				new Vertex(0.5f, 0.5f, 0f, 0f, 0f, 1f, 1f, 1f),
+				new Vertex(-0.5f, 0.5f, 0f, 1f, 1f, 1f, 0f, 1f),
+
+				new Vertex(-0.5f, -0.5f, -0.5f, 1f, 0f, 0f, 0f, 0f),
+				new Vertex(0.5f, -0.5f, -0.5f, 0f, 1f, 0f, 1f, 0f),
+				new Vertex(0.5f, 0.5f, -0.5f, 0f, 0f, 1f, 1f, 1f),
+				new Vertex(-0.5f, 0.5f, -0.5f, 1f, 1f, 1f, 0f, 1f)
 			});
 
-			IndexBuffer = new IndexBuffer<ushort>(this, new ushort[] { 0, 1, 2, 2, 3, 0 });
+			IndexBuffer = new IndexBuffer<ushort>(this, new ushort[] { 0, 1, 2, 2, 3, 0, 4, 5, 6, 6, 7, 4 });
 
 			UniformBuffers = new UniformBuffer<UniformBufferObject>[SwapchainImages.Length];
 			for (int i = 0; i < UniformBuffers.Length; i++) UniformBuffers[i] = new UniformBuffer<UniformBufferObject>(this);
@@ -432,17 +439,36 @@ namespace Proxima.Graphics
 				finalLayout = VkImageLayout.PresentSrcKHR
 			};
 
+			VkAttachmentDescription depthAttachment = new VkAttachmentDescription
+			{
+				format = VulkanUtils.FindDepthFormat(this),
+				samples = VkSampleCountFlags.Count1,
+				loadOp = VkAttachmentLoadOp.Clear,
+				storeOp = VkAttachmentStoreOp.Store,
+				stencilLoadOp = VkAttachmentLoadOp.Load,
+				stencilStoreOp = VkAttachmentStoreOp.Store,
+				initialLayout = VkImageLayout.Undefined,
+				finalLayout = VkImageLayout.DepthStencilAttachmentOptimal
+			};
+
 			VkAttachmentReference colorAttachmentRef = new VkAttachmentReference
 			{
 				attachment = 0,
 				layout = VkImageLayout.ColorAttachmentOptimal
 			};
 
+			VkAttachmentReference depthAttachmentRef = new VkAttachmentReference
+			{
+				attachment = 1,
+				layout = VkImageLayout.DepthStencilAttachmentOptimal
+			};
+
 			VkSubpassDescription subpass = new VkSubpassDescription
 			{
 				pipelineBindPoint = VkPipelineBindPoint.Graphics,
 				colorAttachmentCount = 1,
-				pColorAttachments = &colorAttachmentRef
+				pColorAttachments = &colorAttachmentRef,
+				pDepthStencilAttachment = &depthAttachmentRef
 			};
 
 			VkSubpassDependency dependency = new VkSubpassDependency
@@ -455,16 +481,18 @@ namespace Proxima.Graphics
 				dstAccessMask = VkAccessFlags.ColorAttachmentWrite
 			};
 
+			VkAttachmentDescription[] attachments = { colorAttachment, depthAttachment };
+
 			VkRenderPassCreateInfo renderPassCreateInfo = new VkRenderPassCreateInfo
 			{
 				sType = VkStructureType.RenderPassCreateInfo,
-				attachmentCount = 1,
-				pAttachments = &colorAttachment,
+				attachmentCount = (uint)attachments.Length,
 				subpassCount = 1,
 				pSubpasses = &subpass,
 				dependencyCount = 1,
 				pDependencies = &dependency
 			};
+			fixed (VkAttachmentDescription* ptr = attachments) renderPassCreateInfo.pAttachments = ptr;
 
 			Vulkan.vkCreateRenderPass(LogicalDevice, &renderPassCreateInfo, null, out RenderPass).CheckResult();
 		}
@@ -549,7 +577,7 @@ namespace Proxima.Graphics
 					offset = 0,
 					range = UniformBuffers[i].Size
 				};
-				
+
 				VkDescriptorImageInfo imageInfo = new VkDescriptorImageInfo
 				{
 					imageLayout = VkImageLayout.ShaderReadOnlyOptimal,
@@ -557,7 +585,7 @@ namespace Proxima.Graphics
 					sampler = Texture.Sampler
 				};
 
-				VkWriteDescriptorSet[] writeDescriptorSets = new[]
+				VkWriteDescriptorSet[] writeDescriptorSets =
 				{
 					new VkWriteDescriptorSet
 					{
@@ -710,6 +738,16 @@ namespace Proxima.Graphics
 
 			Vulkan.vkCreatePipelineLayout(LogicalDevice, &pipelineLayoutCreateInfo, null, out PipelineLayout).CheckResult();
 
+			VkPipelineDepthStencilStateCreateInfo depthStencil = new VkPipelineDepthStencilStateCreateInfo
+			{
+				sType = VkStructureType.PipelineDepthStencilStateCreateInfo,
+				depthTestEnable = true,
+				depthWriteEnable = true,
+				depthCompareOp = VkCompareOp.Less,
+				depthBoundsTestEnable = false,
+				stencilTestEnable = false
+			};
+
 			VkGraphicsPipelineCreateInfo pipelineCreateInfo = new VkGraphicsPipelineCreateInfo
 			{
 				sType = VkStructureType.GraphicsPipelineCreateInfo,
@@ -719,7 +757,7 @@ namespace Proxima.Graphics
 				pViewportState = &viewportState,
 				pRasterizationState = &rasterizer,
 				pMultisampleState = &multisampling,
-				pDepthStencilState = null,
+				pDepthStencilState = &depthStencil,
 				pColorBlendState = &colorBlending,
 				pDynamicState = null,
 				layout = PipelineLayout,
@@ -739,22 +777,24 @@ namespace Proxima.Graphics
 
 		private unsafe void CreateFramebuffers()
 		{
+			DepthBuffer = new DepthBuffer(this, window.Size);
+
 			SwapchainFramebuffers = new VkFramebuffer[SwapchainImageViews.Length];
 
 			for (int i = 0; i < SwapchainImageViews.Length; i++)
 			{
-				VkImageView[] attachments = { SwapchainImageViews[i] };
+				VkImageView[] attachments = { SwapchainImageViews[i], DepthBuffer.View };
 
 				VkFramebufferCreateInfo framebufferCreateInfo = new VkFramebufferCreateInfo
 				{
 					sType = VkStructureType.FramebufferCreateInfo,
 					renderPass = RenderPass,
-					attachmentCount = 1,
+					attachmentCount = (uint)attachments.Length,
 					width = (uint)SwapchainExtent.Width,
 					height = (uint)SwapchainExtent.Height,
 					layers = 1
 				};
-				fixed (VkImageView* ptr = &attachments[0]) framebufferCreateInfo.pAttachments = ptr;
+				fixed (VkImageView* ptr = attachments) framebufferCreateInfo.pAttachments = ptr;
 
 				Vulkan.vkCreateFramebuffer(LogicalDevice, &framebufferCreateInfo, null, out SwapchainFramebuffers[i]).CheckResult();
 			}
@@ -773,7 +813,6 @@ namespace Proxima.Graphics
 
 			Vulkan.vkCreateCommandPool(LogicalDevice, &commandPoolCreateInfo, null, out CommandPool).CheckResult();
 		}
-
 
 		private unsafe void CreateCommandBuffers()
 		{
@@ -802,15 +841,19 @@ namespace Proxima.Graphics
 
 				Color4 clearColor = new Color4(Color.Black);
 
+				VkClearValue[] clearValues = new VkClearValue[2];
+				clearValues[0].color = *(VkClearColorValue*)&clearColor;
+				clearValues[1].depthStencil = new VkClearDepthStencilValue(1f, 0);
+
 				VkRenderPassBeginInfo renderPassBeginInfo = new VkRenderPassBeginInfo
 				{
 					sType = VkStructureType.RenderPassBeginInfo,
 					renderPass = RenderPass,
 					framebuffer = SwapchainFramebuffers[i],
 					renderArea = new Rectangle(0, 0, SwapchainExtent.Width, SwapchainExtent.Height),
-					clearValueCount = 1,
-					pClearValues = (VkClearValue*)&clearColor
+					clearValueCount = (uint)clearValues.Length
 				};
+				fixed (VkClearValue* ptr = clearValues) renderPassBeginInfo.pClearValues = ptr;
 
 				Vulkan.vkCmdBeginRenderPass(CommandBuffers[i], &renderPassBeginInfo, VkSubpassContents.Inline);
 
@@ -852,6 +895,8 @@ namespace Proxima.Graphics
 
 		private unsafe void CleanupSwapchain()
 		{
+			DepthBuffer.Dispose();
+
 			foreach (VkFramebuffer framebuffer in SwapchainFramebuffers) Vulkan.vkDestroyFramebuffer(LogicalDevice, framebuffer, null);
 
 			fixed (VkCommandBuffer* ptr = &CommandBuffers[0]) Vulkan.vkFreeCommandBuffers(LogicalDevice, CommandPool, (uint)CommandBuffers.Length, ptr);
@@ -960,7 +1005,7 @@ namespace Proxima.Graphics
 		private void UpdateUniformBuffer(uint index)
 		{
 			UniformBufferObject ubo = new UniformBufferObject();
-			ubo.Model = Matrix4x4.CreateRotationZ((float)Time.TotalUpdateTime);
+			ubo.Model = Matrix4x4.CreateRotationZ(MathHelper.ToRadians(45f) /*(float)Time.TotalUpdateTime*/);
 			ubo.View = Matrix4x4.CreateLookAt(new Vector3(0f, 2f, 2f), Vector3.Zero, Vector3.UnitZ);
 			ubo.Projection = Matrix4x4.CreatePerspectiveFieldOfView(MathHelper.ToRadians(45f), SwapchainExtent.Width / (float)SwapchainExtent.Height, 0.1f, 100f);
 
