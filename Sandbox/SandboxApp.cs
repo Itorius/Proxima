@@ -1,10 +1,10 @@
-﻿using Proxima;
-using Proxima.ECS;
-using Proxima.Weaver;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using Proxima;
+using Proxima.ECS;
+using Proxima.Weaver;
 using Vortice.Mathematics;
 
 namespace Sandbox
@@ -13,63 +13,47 @@ namespace Sandbox
 	{
 		private const int TestEntities = 256;
 
-		public static Application CreateApplication()
+		public static Application CreateApplication() => new SandboxApp(new Options
 		{
-			SandboxApp app = new SandboxApp(new Options
-			{
-				Title = "Sandbox",
-				Size = new Size(1280, 720),
-				VSync = false
-			});
+			Title = "Sandbox",
+			Size = new Size(1280, 720),
+			VSync = false
+		});
 
-			// todo: this will get replaced
-			// app.window.Render += Render;
-			// app.window.Update += Update;
-			// app.window.Load += Load;
-			// app.window.Close += Close;
-			return app;
+		public override void Update()
+		{
+			var view = Registry.View<TransformComponent, ColorComponent>();
+
+			foreach (Entity entity in view)
+			{
+				var (transformComponent, colorComponent) = view.Get<TransformComponent, ColorComponent>(entity);
+			}
 		}
 
-		private static void Close()
+		public override void Render()
+		{
+			// Color4 color = new HslColor(MathF.Sin(Time.TotalUpdateTime) * 0.5f + 0.5f, 1f, 0.5f).ToRGB();
+			Renderer2D.Begin(System.Drawing.Color.Black);
+
+			for (int i = 0; i < 10; i++)
+			{
+				float x = MathF.Cos(MathF.Tau / 10 * i) * 250f;
+				float y = MathF.Sin(MathF.Tau / 10 * i) * 250f;
+				Renderer2D.DrawQuad(new Vector2(x, y), new Vector2(100f), System.Drawing.Color.DeepPink);
+			}
+
+			Renderer2D.End();
+		}
+
+		public override void Close()
 		{
 			Console.ForegroundColor = ConsoleColor.Yellow;
 			foreach ((string key, List<double> value) in ProfileWeaver.profileData) Console.WriteLine($"Mean execution time of '{key}': {value.Average():F2} ms");
 			Console.ResetColor();
 		}
 
-		[Profile(false)]
-		private static void Update()
-		{
-			var view = Registry.View<TransformComponent, ColorComponent>();
-
-			float count = 0;
-
-			foreach (Entity entity in view)
-			{
-				var (transformComponent, colorComponent) = view.Get<TransformComponent, ColorComponent>(entity);
-				count += transformComponent.Transform.M11;
-				count += colorComponent.color.R;
-			}
-
-			Console.WriteLine(count);
-
-			// float count = 0f;
-			// var group = Registry.Group<TransformComponent, ColorComponent>();
-			//
-			// foreach (Entity entity in group)
-			// {
-			// 	// count++;
-			//
-			// 	var transformComponent = group.Get<TransformComponent>(entity);
-			// 	count += transformComponent.Transform.M11;
-			// 	// count += colorComponent.color.R;
-			// }
-			//
-			// Console.WriteLine(count);
-		}
-
 		[Profile]
-		private void Load()
+		public override void Load()
 		{
 			Entity e = Entity.Null;
 
@@ -85,11 +69,6 @@ namespace Sandbox
 
 			Registry.DestroyEntity(e);
 			Registry.CreateEntity("Doot");
-		}
-
-		[Profile(false)]
-		private static void Render()
-		{
 		}
 
 		public SandboxApp(Options options) : base(options)

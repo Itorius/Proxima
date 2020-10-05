@@ -17,7 +17,7 @@ namespace Proxima
 		}
 
 		private NativeWindow window;
-		private GraphicsDevice GraphicsDevice;
+		protected GraphicsDevice GraphicsDevice;
 
 		public Application(Options options)
 		{
@@ -40,6 +40,10 @@ namespace Proxima
 			#endif
 
 			GraphicsDevice.Initialize();
+
+			Renderer2D.Initialize(GraphicsDevice);
+
+			Load();
 		}
 
 		private void Cleanup()
@@ -52,24 +56,48 @@ namespace Proxima
 			LogManager.Shutdown();
 		}
 
+		public virtual void Update()
+		{
+		}
+
+		public virtual void Render()
+		{
+		}
+
+		public virtual void Load()
+		{
+		}
+
+		public virtual void Close()
+		{
+		}
+
 		internal void Run()
 		{
 			DateTime old = DateTime.Now;
-			
+
 			while (!Glfw.WindowShouldClose(window))
 			{
 				DateTime now = DateTime.Now;
 				TimeSpan diff = now - old;
-				old= now;
+				old = now;
 
-				Time.DeltaUpdateTime = diff.TotalSeconds;
+				Time.DeltaUpdateTime = (float)diff.TotalSeconds;
 				Time.TotalUpdateTime += Time.DeltaUpdateTime;
+
+				window.Title = $"Sandbox ({1 / (Time.DeltaUpdateTime):F1} FPS)";
 				
 				Glfw.PollEvents();
 
-				GraphicsDevice.Draw();
+				GraphicsDevice.BeginFrame();
+				
+				Update();
+				Render();
+
+				GraphicsDevice.EndFrame();
 			}
 
+			Close();
 			Cleanup();
 		}
 	}

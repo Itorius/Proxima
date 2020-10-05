@@ -24,7 +24,7 @@ namespace Proxima.Graphics
 
 			void* dataPtr = null;
 			Vulkan.vkMapMemory(graphicsDevice.LogicalDevice, stagingMemory, 0, size, VkMemoryMapFlags.None, &dataPtr);
-			fixed (byte* ptr = &image.Data[0]) System.Buffer.MemoryCopy(ptr, dataPtr, size, size);
+			fixed (byte* ptr = image.Data) System.Buffer.MemoryCopy(ptr, dataPtr, size, size);
 			Vulkan.vkUnmapMemory(graphicsDevice.LogicalDevice, stagingMemory);
 
 			VkImageCreateInfo imageCreateInfo = new VkImageCreateInfo
