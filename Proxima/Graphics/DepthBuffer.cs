@@ -19,7 +19,7 @@ namespace Proxima.Graphics
 			{
 				sType = VkStructureType.ImageCreateInfo,
 				imageType = VkImageType.Image2D,
-				extent = new Size3(size.Width, size.Height, 1),
+				extent = new VkExtent3D(size.Width, size.Height, 1),
 				mipLevels = 1,
 				arrayLayers = 1,
 				format = Format,

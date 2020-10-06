@@ -43,11 +43,12 @@ namespace Proxima
 
 			Renderer2D.Initialize(GraphicsDevice);
 
-			Load();
+			OnLoad();
 		}
 
 		private void Cleanup()
 		{
+			Renderer2D.Cleanup();
 			GraphicsDevice.Dispose();
 
 			Glfw.DestroyWindow(window);
@@ -56,19 +57,19 @@ namespace Proxima
 			LogManager.Shutdown();
 		}
 
-		public virtual void Update()
+		public virtual void OnUpdate()
 		{
 		}
 
-		public virtual void Render()
+		public virtual void OnRender()
 		{
 		}
 
-		public virtual void Load()
+		public virtual void OnLoad()
 		{
 		}
 
-		public virtual void Close()
+		public virtual void OnClose()
 		{
 		}
 
@@ -91,13 +92,14 @@ namespace Proxima
 
 				GraphicsDevice.BeginFrame();
 				
-				Update();
-				Render();
+				OnUpdate();
+				OnRender();
 
 				GraphicsDevice.EndFrame();
 			}
 
-			Close();
+			OnClose();
+			
 			Cleanup();
 		}
 	}

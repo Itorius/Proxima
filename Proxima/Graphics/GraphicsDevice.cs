@@ -6,7 +6,6 @@ using System.Numerics;
 using GLFW;
 using Vortice.Mathematics;
 using Vortice.Vulkan;
-using Color = System.Drawing.Color;
 using Exception = System.Exception;
 using Vulkan = Vortice.Vulkan.Vulkan;
 
@@ -43,7 +42,7 @@ namespace Proxima.Graphics
 		private VkSurfaceKHR Surface;
 		private VkSwapchainKHR Swapchain;
 		private VkFormat SwapchainFormat;
-		private Size SwapchainExtent;
+		private VkExtent2D SwapchainExtent;
 		private VkImage[] SwapchainImages;
 		private VkImageView[] SwapchainImageViews;
 
@@ -79,7 +78,7 @@ namespace Proxima.Graphics
 		{
 			this.window = window;
 		}
-
+		
 		public void Initialize()
 		{
 			if (Vulkan.Initialize() != VkResult.Success) throw new Exception("Failed to initialize Vulkan");
@@ -110,21 +109,6 @@ namespace Proxima.Graphics
 			CreateCommandPool();
 
 			CreateFramebuffers();
-
-			// VertexBuffer = new VertexBuffer<Vertex>(this, new[]
-			// {
-			// 	new Vertex(-0.5f, -0.5f, 0f, 1f, 0f, 0f, 0f, 0f),
-			// 	new Vertex(0.5f, -0.5f, 0f, 0f, 1f, 0f, 1f, 0f),
-			// 	new Vertex(0.5f, 0.5f, 0f, 0f, 0f, 1f, 1f, 1f),
-			// 	new Vertex(-0.5f, 0.5f, 0f, 1f, 1f, 1f, 0f, 1f),
-			//
-			// 	new Vertex(-0.5f, -0.5f, -0.5f, 1f, 0f, 0f, 0f, 0f),
-			// 	new Vertex(0.5f, -0.5f, -0.5f, 0f, 1f, 0f, 1f, 0f),
-			// 	new Vertex(0.5f, 0.5f, -0.5f, 0f, 0f, 1f, 1f, 1f),
-			// 	new Vertex(-0.5f, 0.5f, -0.5f, 1f, 1f, 1f, 0f, 1f)
-			// });
-			//
-			// IndexBuffer = new IndexBuffer<uint>(this, new uint[] { 0, 1, 2, 2, 3, 0, 4, 5, 6, 6, 7, 4 });
 
 			UniformBuffers = new UniformBuffer<UniformBufferObject>[SwapchainImages.Length];
 			for (int i = 0; i < UniformBuffers.Length; i++) UniformBuffers[i] = new UniformBuffer<UniformBufferObject>(this);
@@ -282,7 +266,7 @@ namespace Proxima.Graphics
 
 			VkSurfaceFormatKHR surfaceFormat = SelectSwapSurfaceFormat(details.formats);
 			VkPresentModeKHR presentMode = SelectSwapPresentMode(details.presentModes);
-			Size extent = SelectSwapExtent(details.capabilities, window);
+			VkExtent2D extent = SelectSwapExtent(details.capabilities, window);
 
 			uint imageCount = details.capabilities.minImageCount + 1;
 			if (details.capabilities.maxImageCount > 0 && imageCount > details.capabilities.maxImageCount) imageCount = details.capabilities.maxImageCount;
@@ -347,14 +331,14 @@ namespace Proxima.Graphics
 				return VkPresentModeKHR.Fifo;
 			}
 
-			static Size SelectSwapExtent(VkSurfaceCapabilitiesKHR capabilities, NativeWindow window)
+			static VkExtent2D SelectSwapExtent(VkSurfaceCapabilitiesKHR capabilities, NativeWindow window)
 			{
-				if (capabilities.currentExtent.Width != int.MaxValue) return capabilities.currentExtent;
+				if (capabilities.currentExtent.width != int.MaxValue) return capabilities.currentExtent;
 
-				Size actualExtent = window.Size;
+				VkExtent2D actualExtent = new VkExtent2D(window.Size.Width, window.Size.Height);
 
-				actualExtent.Width = Math.Clamp(actualExtent.Width, capabilities.minImageExtent.Width, capabilities.maxImageExtent.Width);
-				actualExtent.Height = Math.Clamp(actualExtent.Height, capabilities.minImageExtent.Height, capabilities.maxImageExtent.Height);
+				actualExtent.width = Math.Clamp(actualExtent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
+				actualExtent.height = Math.Clamp(actualExtent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
 
 				return actualExtent;
 			}
@@ -579,8 +563,8 @@ namespace Proxima.Graphics
 
 		private unsafe void CreateGraphicsPipeline()
 		{
-			var vertex = File.ReadAllBytes("Assets/vert.spv");
-			var fragment = File.ReadAllBytes("Assets/frag.spv");
+			var vertex = File.ReadAllBytes("Assets/test.vert.spv");
+			var fragment = File.ReadAllBytes("Assets/test.frag.spv");
 
 			VkShaderModule vertexShaderModule = CreateShaderModule(LogicalDevice, vertex);
 			VkShaderModule fragmentShaderModule = CreateShaderModule(LogicalDevice, fragment);
@@ -622,8 +606,8 @@ namespace Proxima.Graphics
 				primitiveRestartEnable = false
 			};
 
-			Viewport viewport = new Viewport(0, 0, SwapchainExtent.Width, SwapchainExtent.Height, 0f, 1f);
-			Rectangle scissor = new Rectangle(0, 0, SwapchainExtent.Width, SwapchainExtent.Height);
+			VkViewport viewport = new VkViewport(0, 0, SwapchainExtent.width, SwapchainExtent.height, 0f, 1f);
+			VkRect2D scissor = new VkRect2D(0, 0, SwapchainExtent.width, SwapchainExtent.height);
 
 			VkPipelineViewportStateCreateInfo viewportState = new VkPipelineViewportStateCreateInfo
 			{
@@ -754,8 +738,8 @@ namespace Proxima.Graphics
 					sType = VkStructureType.FramebufferCreateInfo,
 					renderPass = RenderPass,
 					attachmentCount = (uint)attachments.Length,
-					width = (uint)SwapchainExtent.Width,
-					height = (uint)SwapchainExtent.Height,
+					width = SwapchainExtent.width,
+					height = SwapchainExtent.height,
 					layers = 1
 				};
 				fixed (VkImageView* ptr = attachments) framebufferCreateInfo.pAttachments = ptr;
@@ -804,7 +788,7 @@ namespace Proxima.Graphics
 				Vulkan.vkBeginCommandBuffer(CommandBuffers[i], &beginInfo).CheckResult();
 
 				VkClearValue[] clearValues = new VkClearValue[2];
-				clearValues[0].color = new VkClearColorValue(new Color4(Color.Black));
+				clearValues[0].color = new VkClearColorValue(0, 0, 0);
 				clearValues[1].depthStencil = new VkClearDepthStencilValue(1f, 0);
 
 				VkRenderPassBeginInfo renderPassBeginInfo = new VkRenderPassBeginInfo
@@ -812,7 +796,7 @@ namespace Proxima.Graphics
 					sType = VkStructureType.RenderPassBeginInfo,
 					renderPass = RenderPass,
 					framebuffer = SwapchainFramebuffers[i],
-					renderArea = new Rectangle(0, 0, SwapchainExtent.Width, SwapchainExtent.Height),
+					renderArea = new VkRect2D(0, 0, SwapchainExtent.width, SwapchainExtent.height),
 					clearValueCount = (uint)clearValues.Length
 				};
 				fixed (VkClearValue* ptr = clearValues) renderPassBeginInfo.pClearValues = ptr;
@@ -922,7 +906,7 @@ namespace Proxima.Graphics
 
 			VkClearValue[] clearValues = new VkClearValue[2];
 
-			clearValues[0].color = new VkClearColorValue(color);
+			clearValues[0].color = new VkClearColorValue(color.R, color.G, color.B, color.A);
 			clearValues[1].depthStencil = new VkClearDepthStencilValue(1f, 0);
 
 			VkRenderPassBeginInfo renderPassBeginInfo = new VkRenderPassBeginInfo
@@ -930,7 +914,7 @@ namespace Proxima.Graphics
 				sType = VkStructureType.RenderPassBeginInfo,
 				renderPass = RenderPass,
 				framebuffer = SwapchainFramebuffers[index],
-				renderArea = new Rectangle(0, 0, SwapchainExtent.Width, SwapchainExtent.Height),
+				renderArea = new VkRect2D(0, 0, SwapchainExtent.width, SwapchainExtent.height),
 				clearValueCount = (uint)clearValues.Length
 			};
 			fixed (VkClearValue* ptr = clearValues) renderPassBeginInfo.pClearValues = ptr;
@@ -1027,7 +1011,7 @@ namespace Proxima.Graphics
 			{
 				Model = Matrix4x4.Identity,
 				View = Matrix4x4.Identity,
-				Projection = Matrix4x4.CreateOrthographic(SwapchainExtent.Width, SwapchainExtent.Height, -1f, 1f)
+				Projection = Matrix4x4.CreateOrthographic(SwapchainExtent.width, SwapchainExtent.height, -1f, 1f)
 			};
 
 			// ubo.Projection = Matrix4x4.CreatePerspectiveFieldOfView(MathHelper.ToRadians(45f), SwapchainExtent.Width / (float)SwapchainExtent.Height, 0.1f, 100f);
@@ -1044,8 +1028,6 @@ namespace Proxima.Graphics
 
 			Vulkan.vkDestroyDescriptorSetLayout(LogicalDevice, DescriptorSetLayout, null);
 
-			// VertexBuffer.Dispose();
-			// IndexBuffer.Dispose();
 			Texture.Dispose();
 
 			for (int i = 0; i < MaxFramesInFlight; i++)

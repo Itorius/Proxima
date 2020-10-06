@@ -168,7 +168,7 @@ namespace Proxima.Graphics
 					baseArrayLayer = 0,
 					layerCount = 1
 				},
-				imageExtent = new Size3(width, height, 1)
+				imageExtent = new VkExtent3D(width, height, 1)
 			};
 
 			Vulkan.vkCmdCopyBufferToImage(commandBuffer, buffer, image, VkImageLayout.TransferDstOptimal, 1, &region);

@@ -20,7 +20,7 @@ namespace Sandbox
 			VSync = false
 		});
 
-		public override void Update()
+		public override void OnUpdate()
 		{
 			var view = Registry.View<TransformComponent, ColorComponent>();
 
@@ -30,22 +30,24 @@ namespace Sandbox
 			}
 		}
 
-		public override void Render()
+		public override void OnRender()
 		{
-			// Color4 color = new HslColor(MathF.Sin(Time.TotalUpdateTime) * 0.5f + 0.5f, 1f, 0.5f).ToRGB();
+			Color4 color = new HslColor(MathF.Sin(Time.TotalUpdateTime) * 0.5f + 0.5f, 1f, 0.5f, 0.2f).ToRGB();
 			Renderer2D.Begin(System.Drawing.Color.Black);
 
-			for (int i = 0; i < 10; i++)
+			const int toms = 100;
+			for (int i = 0; i < toms; i++)
 			{
-				float x = MathF.Cos(MathF.Tau / 10 * i) * 250f;
-				float y = MathF.Sin(MathF.Tau / 10 * i) * 250f;
-				Renderer2D.DrawQuad(new Vector2(x, y), new Vector2(100f), System.Drawing.Color.DeepPink);
+				float angle = MathF.Tau / toms * i + Time.TotalUpdateTime;
+				float x = MathF.Cos(angle) * 250f;
+				float y = MathF.Sin(angle) * 250f;
+				Renderer2D.DrawQuad(new Vector2(x, y), new Vector2(100f), color);
 			}
 
 			Renderer2D.End();
 		}
 
-		public override void Close()
+		public override void OnClose()
 		{
 			Console.ForegroundColor = ConsoleColor.Yellow;
 			foreach ((string key, List<double> value) in ProfileWeaver.profileData) Console.WriteLine($"Mean execution time of '{key}': {value.Average():F2} ms");
@@ -53,7 +55,7 @@ namespace Sandbox
 		}
 
 		[Profile]
-		public override void Load()
+		public override void OnLoad()
 		{
 			Entity e = Entity.Null;
 

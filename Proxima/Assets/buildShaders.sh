@@ -1,2 +1,4 @@
-glslc test.frag -o frag.spv
-glslc test.vert -o vert.spv
+for i in *.vert *.frag
+do
+    glslc "$i" -o "$i.spv"
+done

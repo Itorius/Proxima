@@ -68,6 +68,14 @@ namespace Proxima
 			IndexBuffer = new IndexBuffer<uint>(gd, 1000 * 6);
 		}
 
+		internal static void Cleanup()
+		{
+			Vulkan.vkDeviceWaitIdle(gd.LogicalDevice);
+			
+			VertexBuffer.Dispose();
+			IndexBuffer.Dispose();
+		}
+
 		internal static VkCommandBuffer buffer;
 		public static uint imageIndex;
 
@@ -109,10 +117,10 @@ namespace Proxima
 		public static void DrawQuad(Vector2 position, Vector2 size, Color4 color)
 		{
 			var (r, g, b, a) = color;
-			vertices.Add(new Vertex(position.X, position.Y, 0f, r, g, b, 0f, 0f));
-			vertices.Add(new Vertex(position.X + size.X, position.Y, 0f, r, g, b, 1f, 0f));
-			vertices.Add(new Vertex(position.X + size.X, position.Y + size.Y, 0f, r, g, b, 1f, 1f));
-			vertices.Add(new Vertex(position.X, position.Y + size.Y, 0f, r, g, b, 0f, 1f));
+			vertices.Add(new Vertex(position.X - size.X * 0.5f, position.Y - size.Y * 0.5f, 0f, r, g, b, 0f, 0f));
+			vertices.Add(new Vertex(position.X + size.X * 0.5f, position.Y - size.Y * 0.5f, 0f, r, g, b, 1f, 0f));
+			vertices.Add(new Vertex(position.X + size.X * 0.5f, position.Y + size.Y * 0.5f, 0f, r, g, b, 1f, 1f));
+			vertices.Add(new Vertex(position.X - size.X * 0.5f, position.Y + size.Y * 0.5f, 0f, r, g, b, 0f, 1f));
 
 			indices.Add(nextQuadID * 4 + 0);
 			indices.Add(nextQuadID * 4 + 1);
