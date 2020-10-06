@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Numerics;
 using GLFW;
@@ -13,7 +12,7 @@ namespace Proxima.Graphics
 {
 	public sealed partial class GraphicsDevice : IDisposable
 	{
-		private struct QueueFamilyIndices
+		internal struct QueueFamilyIndices
 		{
 			public uint? graphics;
 			public uint? present;
@@ -21,7 +20,7 @@ namespace Proxima.Graphics
 			public bool IsComplete => graphics.HasValue && present.HasValue;
 		}
 
-		private ref struct SwapChainSupportDetails
+		internal ref struct SwapChainSupportDetails
 		{
 			public VkSurfaceCapabilitiesKHR capabilities;
 			public ReadOnlySpan<VkSurfaceFormatKHR> formats;
@@ -30,7 +29,7 @@ namespace Proxima.Graphics
 
 		private static readonly VkStringArray DeviceExtensions = new VkStringArray(new[] { Vulkan.KHRSwapchainExtensionName });
 
-		private NativeWindow window;
+		internal NativeWindow window;
 
 		private VkInstance Instance;
 		internal VkPhysicalDevice PhysicalDevice;
@@ -39,21 +38,17 @@ namespace Proxima.Graphics
 		internal VkQueue GraphicsQueue;
 		private VkQueue PresentQueue;
 
-		private VkSurfaceKHR Surface;
-		private VkSwapchainKHR Swapchain;
-		private VkFormat SwapchainFormat;
-		private VkExtent2D SwapchainExtent;
-		private VkImage[] SwapchainImages;
-		private VkImageView[] SwapchainImageViews;
+		internal VkSurfaceKHR Surface;
+		internal VulkanSwapchain Swapchain;
 
-		private VkRenderPass RenderPass;
+		private VulkanRenderPass RenderPass;
 		private VkDescriptorSetLayout DescriptorSetLayout;
 		internal VkPipelineLayout PipelineLayout;
 		private VkPipeline GraphicsPipeline;
 
 		private VkFramebuffer[] SwapchainFramebuffers;
+
 		internal VkCommandPool CommandPool;
-		private VkCommandBuffer[] CommandBuffers;
 
 		private const int MaxFramesInFlight = 2;
 		private VkSemaphore[] RenderFinishedSemaphores;
@@ -64,8 +59,6 @@ namespace Proxima.Graphics
 		private int currentFrame;
 		private bool framebufferResized;
 
-		// private VertexBuffer<Vertex> VertexBuffer;
-		// private IndexBuffer<uint> IndexBuffer;
 		private UniformBuffer<UniformBufferObject>[] UniformBuffers;
 		private Texture2D Texture;
 
@@ -78,7 +71,7 @@ namespace Proxima.Graphics
 		{
 			this.window = window;
 		}
-		
+
 		public void Initialize()
 		{
 			if (Vulkan.Initialize() != VkResult.Success) throw new Exception("Failed to initialize Vulkan");
@@ -96,11 +89,9 @@ namespace Proxima.Graphics
 
 			CreateLogicalDevice();
 
-			CreateSwapchain();
+			Swapchain = new VulkanSwapchain(this);
 
-			CreateImageViews();
-
-			CreateRenderPass();
+			RenderPass = new VulkanRenderPass(this);
 
 			CreateDescriptorSetLayout();
 
@@ -110,15 +101,13 @@ namespace Proxima.Graphics
 
 			CreateFramebuffers();
 
-			UniformBuffers = new UniformBuffer<UniformBufferObject>[SwapchainImages.Length];
+			UniformBuffers = new UniformBuffer<UniformBufferObject>[Swapchain.Length];
 			for (int i = 0; i < UniformBuffers.Length; i++) UniformBuffers[i] = new UniformBuffer<UniformBufferObject>(this);
 
 			Texture = new Texture2D(this, "Assets/Tom.png");
 
 			CreateDescriptorPool();
 			CreateDescriptorSets();
-
-			CreateCommandBuffers();
 
 			CreateSyncObjects();
 		}
@@ -260,191 +249,7 @@ namespace Proxima.Graphics
 			return new VkStringArray(layers);
 		}
 
-		private unsafe void CreateSwapchain()
-		{
-			SwapChainSupportDetails details = QuerySwapchainSupport(PhysicalDevice, Surface);
-
-			VkSurfaceFormatKHR surfaceFormat = SelectSwapSurfaceFormat(details.formats);
-			VkPresentModeKHR presentMode = SelectSwapPresentMode(details.presentModes);
-			VkExtent2D extent = SelectSwapExtent(details.capabilities, window);
-
-			uint imageCount = details.capabilities.minImageCount + 1;
-			if (details.capabilities.maxImageCount > 0 && imageCount > details.capabilities.maxImageCount) imageCount = details.capabilities.maxImageCount;
-
-			VkSwapchainCreateInfoKHR createInfo = new VkSwapchainCreateInfoKHR
-			{
-				sType = VkStructureType.SwapchainCreateInfoKHR,
-				surface = Surface,
-				minImageCount = imageCount,
-				imageFormat = surfaceFormat.format,
-				imageColorSpace = surfaceFormat.colorSpace,
-				imageExtent = extent,
-				imageArrayLayers = 1,
-				imageUsage = VkImageUsageFlags.ColorAttachment,
-				preTransform = details.capabilities.currentTransform,
-				compositeAlpha = VkCompositeAlphaFlagsKHR.Opaque,
-				presentMode = presentMode,
-				clipped = true,
-				oldSwapchain = VkSwapchainKHR.Null
-			};
-
-			QueueFamilyIndices indices = FindQueueFamilies(PhysicalDevice, Surface);
-			uint[] queueFamilyIndices = { indices.graphics.Value, indices.present.Value };
-
-			if (indices.graphics.Value != indices.present.Value)
-			{
-				createInfo.imageSharingMode = VkSharingMode.Concurrent;
-				createInfo.queueFamilyIndexCount = 2;
-				fixed (uint* ptr = queueFamilyIndices) createInfo.pQueueFamilyIndices = ptr;
-			}
-			else
-			{
-				createInfo.imageSharingMode = VkSharingMode.Exclusive;
-			}
-
-			Vulkan.vkCreateSwapchainKHR(LogicalDevice, &createInfo, null, out Swapchain).CheckResult();
-
-			SwapchainImages = Vulkan.vkGetSwapchainImagesKHR(LogicalDevice, Swapchain).ToArray();
-
-			SwapchainFormat = surfaceFormat.format;
-			SwapchainExtent = extent;
-
-			#region Static
-
-			static VkSurfaceFormatKHR SelectSwapSurfaceFormat(ReadOnlySpan<VkSurfaceFormatKHR> formats)
-			{
-				foreach (VkSurfaceFormatKHR format in formats)
-				{
-					if (format.format == VkFormat.B8G8R8A8SRgb && format.colorSpace == VkColorSpaceKHR.SrgbNonLinear) return format;
-				}
-
-				return formats[0];
-			}
-
-			static VkPresentModeKHR SelectSwapPresentMode(ReadOnlySpan<VkPresentModeKHR> presentModes)
-			{
-				foreach (VkPresentModeKHR presentMode in presentModes)
-				{
-					if (presentMode == VkPresentModeKHR.Mailbox) return presentMode;
-				}
-
-				return VkPresentModeKHR.Fifo;
-			}
-
-			static VkExtent2D SelectSwapExtent(VkSurfaceCapabilitiesKHR capabilities, NativeWindow window)
-			{
-				if (capabilities.currentExtent.width != int.MaxValue) return capabilities.currentExtent;
-
-				VkExtent2D actualExtent = new VkExtent2D(window.Size.Width, window.Size.Height);
-
-				actualExtent.width = Math.Clamp(actualExtent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
-				actualExtent.height = Math.Clamp(actualExtent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
-
-				return actualExtent;
-			}
-
-			#endregion
-		}
-
-		private unsafe void CreateImageViews()
-		{
-			SwapchainImageViews = new VkImageView[SwapchainImages.Length];
-
-			for (int i = 0; i < SwapchainImages.Length; i++)
-			{
-				VkImageViewCreateInfo createInfo = new VkImageViewCreateInfo
-				{
-					sType = VkStructureType.ImageViewCreateInfo,
-					image = SwapchainImages[i],
-					viewType = VkImageViewType.Image2D,
-					format = SwapchainFormat,
-					components = VkComponentMapping.Rgba,
-					subresourceRange = new VkImageSubresourceRange
-					{
-						aspectMask = VkImageAspectFlags.Color,
-						baseMipLevel = 0,
-						levelCount = 1,
-						baseArrayLayer = 0,
-						layerCount = 1
-					}
-				};
-
-				Vulkan.vkCreateImageView(LogicalDevice, &createInfo, null, out SwapchainImageViews[i]).CheckResult();
-			}
-		}
-
-		private unsafe void CreateRenderPass()
-		{
-			VkAttachmentDescription colorAttachment = new VkAttachmentDescription
-			{
-				format = SwapchainFormat,
-				samples = VkSampleCountFlags.Count1,
-				loadOp = VkAttachmentLoadOp.Clear,
-				storeOp = VkAttachmentStoreOp.Store,
-				stencilLoadOp = VkAttachmentLoadOp.DontCare,
-				stencilStoreOp = VkAttachmentStoreOp.DontCare,
-				initialLayout = VkImageLayout.Undefined,
-				finalLayout = VkImageLayout.PresentSrcKHR
-			};
-
-			VkAttachmentDescription depthAttachment = new VkAttachmentDescription
-			{
-				format = VulkanUtils.FindDepthFormat(this),
-				samples = VkSampleCountFlags.Count1,
-				loadOp = VkAttachmentLoadOp.Clear,
-				storeOp = VkAttachmentStoreOp.Store,
-				stencilLoadOp = VkAttachmentLoadOp.Load,
-				stencilStoreOp = VkAttachmentStoreOp.Store,
-				initialLayout = VkImageLayout.Undefined,
-				finalLayout = VkImageLayout.DepthStencilAttachmentOptimal
-			};
-
-			VkAttachmentReference colorAttachmentRef = new VkAttachmentReference
-			{
-				attachment = 0,
-				layout = VkImageLayout.ColorAttachmentOptimal
-			};
-
-			VkAttachmentReference depthAttachmentRef = new VkAttachmentReference
-			{
-				attachment = 1,
-				layout = VkImageLayout.DepthStencilAttachmentOptimal
-			};
-
-			VkSubpassDescription subpass = new VkSubpassDescription
-			{
-				pipelineBindPoint = VkPipelineBindPoint.Graphics,
-				colorAttachmentCount = 1,
-				pColorAttachments = &colorAttachmentRef,
-				pDepthStencilAttachment = &depthAttachmentRef
-			};
-
-			VkSubpassDependency dependency = new VkSubpassDependency
-			{
-				srcSubpass = Vulkan.SubpassExternal,
-				dstSubpass = 0,
-				srcStageMask = VkPipelineStageFlags.ColorAttachmentOutput,
-				srcAccessMask = 0,
-				dstStageMask = VkPipelineStageFlags.ColorAttachmentOutput,
-				dstAccessMask = VkAccessFlags.ColorAttachmentWrite
-			};
-
-			VkAttachmentDescription[] attachments = { colorAttachment, depthAttachment };
-
-			VkRenderPassCreateInfo renderPassCreateInfo = new VkRenderPassCreateInfo
-			{
-				sType = VkStructureType.RenderPassCreateInfo,
-				attachmentCount = (uint)attachments.Length,
-				subpassCount = 1,
-				pSubpasses = &subpass,
-				dependencyCount = 1,
-				pDependencies = &dependency
-			};
-			fixed (VkAttachmentDescription* ptr = attachments) renderPassCreateInfo.pAttachments = ptr;
-
-			Vulkan.vkCreateRenderPass(LogicalDevice, &renderPassCreateInfo, null, out RenderPass).CheckResult();
-		}
-
+		// All a part of graphics pipeline
 		private unsafe void CreateDescriptorSetLayout()
 		{
 			VkDescriptorSetLayoutBinding uboLayoutBinding = new VkDescriptorSetLayoutBinding
@@ -504,17 +309,17 @@ namespace Proxima.Graphics
 
 		private unsafe void CreateDescriptorSets()
 		{
-			VkDescriptorSetLayout[] layouts = Enumerable.Repeat(DescriptorSetLayout, SwapchainImages.Length).ToArray();
+			VkDescriptorSetLayout[] layouts = Enumerable.Repeat(DescriptorSetLayout, (int)Swapchain.Length).ToArray();
 
 			VkDescriptorSetAllocateInfo allocateInfo = new VkDescriptorSetAllocateInfo
 			{
 				sType = VkStructureType.DescriptorSetAllocateInfo,
 				descriptorPool = DescriptorPool,
-				descriptorSetCount = (uint)SwapchainImages.Length
+				descriptorSetCount = Swapchain.Length
 			};
 			fixed (VkDescriptorSetLayout* ptr = layouts) allocateInfo.pSetLayouts = ptr;
 
-			DescriptorSets = new VkDescriptorSet[SwapchainImages.Length];
+			DescriptorSets = new VkDescriptorSet[Swapchain.Length];
 			fixed (VkDescriptorSet* ptr = DescriptorSets) Vulkan.vkAllocateDescriptorSets(LogicalDevice, &allocateInfo, ptr).CheckResult();
 
 			for (int i = 0; i < DescriptorSets.Length; i++)
@@ -563,29 +368,7 @@ namespace Proxima.Graphics
 
 		private unsafe void CreateGraphicsPipeline()
 		{
-			var vertex = File.ReadAllBytes("Assets/test.vert.spv");
-			var fragment = File.ReadAllBytes("Assets/test.frag.spv");
-
-			VkShaderModule vertexShaderModule = CreateShaderModule(LogicalDevice, vertex);
-			VkShaderModule fragmentShaderModule = CreateShaderModule(LogicalDevice, fragment);
-
-			VkPipelineShaderStageCreateInfo vertexCreateInfo = new VkPipelineShaderStageCreateInfo
-			{
-				sType = VkStructureType.PipelineShaderStageCreateInfo,
-				stage = VkShaderStageFlags.Vertex,
-				module = vertexShaderModule,
-				pName = new VkString("main")
-			};
-
-			VkPipelineShaderStageCreateInfo fragmentCreateInfo = new VkPipelineShaderStageCreateInfo
-			{
-				sType = VkStructureType.PipelineShaderStageCreateInfo,
-				stage = VkShaderStageFlags.Fragment,
-				module = fragmentShaderModule,
-				pName = new VkString("main")
-			};
-
-			VkPipelineShaderStageCreateInfo[] shaderStages = { vertexCreateInfo, fragmentCreateInfo };
+			Shader shader = new Shader(this, "Assets/test.vert.spv", "Assets/test.frag.spv");
 
 			var bindingDescription = Renderer2D.Vertex.GetBindingDescription();
 			var attributeDescriptions = Renderer2D.Vertex.GetAttributeDescriptions();
@@ -606,8 +389,8 @@ namespace Proxima.Graphics
 				primitiveRestartEnable = false
 			};
 
-			VkViewport viewport = new VkViewport(0, 0, SwapchainExtent.width, SwapchainExtent.height, 0f, 1f);
-			VkRect2D scissor = new VkRect2D(0, 0, SwapchainExtent.width, SwapchainExtent.height);
+			VkViewport viewport = new VkViewport(0, 0, Swapchain.Extent.width, Swapchain.Extent.height, 0f, 1f);
+			VkRect2D scissor = new VkRect2D(0, 0, Swapchain.Extent.width, Swapchain.Extent.height);
 
 			VkPipelineViewportStateCreateInfo viewportState = new VkPipelineViewportStateCreateInfo
 			{
@@ -699,7 +482,6 @@ namespace Proxima.Graphics
 			VkGraphicsPipelineCreateInfo pipelineCreateInfo = new VkGraphicsPipelineCreateInfo
 			{
 				sType = VkStructureType.GraphicsPipelineCreateInfo,
-				stageCount = 2,
 				pVertexInputState = &vertexInputInfo,
 				pInputAssemblyState = &inputAssembly,
 				pViewportState = &viewportState,
@@ -709,37 +491,38 @@ namespace Proxima.Graphics
 				pColorBlendState = &colorBlending,
 				pDynamicState = null,
 				layout = PipelineLayout,
-				renderPass = RenderPass,
+				renderPass = RenderPass.RenderPass,
 				subpass = 0,
 				basePipelineHandle = VkPipeline.Null,
-				basePipelineIndex = -1
+				basePipelineIndex = -1,
+				stageCount = (uint)shader.Stages.Length
 			};
 
-			fixed (VkPipelineShaderStageCreateInfo* ptr = shaderStages) pipelineCreateInfo.pStages = ptr;
+			fixed (VkPipelineShaderStageCreateInfo* ptr = shader.Stages) pipelineCreateInfo.pStages = ptr;
 
 			Vulkan.vkCreateGraphicsPipeline(LogicalDevice, VkPipelineCache.Null, pipelineCreateInfo, out GraphicsPipeline).CheckResult();
 
-			Vulkan.vkDestroyShaderModule(LogicalDevice, vertexShaderModule, null);
-			Vulkan.vkDestroyShaderModule(LogicalDevice, fragmentShaderModule, null);
+			shader.Dispose();
 		}
+		// ---------------
 
 		private unsafe void CreateFramebuffers()
 		{
 			DepthBuffer = new DepthBuffer(this, window.Size);
 
-			SwapchainFramebuffers = new VkFramebuffer[SwapchainImageViews.Length];
+			SwapchainFramebuffers = new VkFramebuffer[Swapchain.Length];
 
-			for (int i = 0; i < SwapchainImageViews.Length; i++)
+			for (int i = 0; i < Swapchain.Length; i++)
 			{
-				VkImageView[] attachments = { SwapchainImageViews[i], DepthBuffer.View };
+				VkImageView[] attachments = { Swapchain.ImageViews[i], DepthBuffer.View };
 
 				VkFramebufferCreateInfo framebufferCreateInfo = new VkFramebufferCreateInfo
 				{
 					sType = VkStructureType.FramebufferCreateInfo,
-					renderPass = RenderPass,
+					renderPass = RenderPass.RenderPass,
 					attachmentCount = (uint)attachments.Length,
-					width = SwapchainExtent.width,
-					height = SwapchainExtent.height,
+					width = Swapchain.Extent.width,
+					height = Swapchain.Extent.height,
 					layers = 1
 				};
 				fixed (VkImageView* ptr = attachments) framebufferCreateInfo.pAttachments = ptr;
@@ -762,67 +545,12 @@ namespace Proxima.Graphics
 			Vulkan.vkCreateCommandPool(LogicalDevice, &commandPoolCreateInfo, null, out CommandPool).CheckResult();
 		}
 
-		private unsafe void CreateCommandBuffers()
-		{
-			CommandBuffers = new VkCommandBuffer[SwapchainFramebuffers.Length];
-
-			VkCommandBufferAllocateInfo allocateInfo = new VkCommandBufferAllocateInfo
-			{
-				sType = VkStructureType.CommandBufferAllocateInfo,
-				commandPool = CommandPool,
-				level = VkCommandBufferLevel.Primary,
-				commandBufferCount = (uint)CommandBuffers.Length
-			};
-
-			Vulkan.vkAllocateCommandBuffers(LogicalDevice, &allocateInfo, out CommandBuffers[0]).CheckResult();
-
-			for (int i = 0; i < CommandBuffers.Length; i++)
-			{
-				VkCommandBufferBeginInfo beginInfo = new VkCommandBufferBeginInfo
-				{
-					sType = VkStructureType.CommandBufferBeginInfo,
-					flags = VkCommandBufferUsageFlags.SimultaneousUse,
-					pInheritanceInfo = null
-				};
-
-				Vulkan.vkBeginCommandBuffer(CommandBuffers[i], &beginInfo).CheckResult();
-
-				VkClearValue[] clearValues = new VkClearValue[2];
-				clearValues[0].color = new VkClearColorValue(0, 0, 0);
-				clearValues[1].depthStencil = new VkClearDepthStencilValue(1f, 0);
-
-				VkRenderPassBeginInfo renderPassBeginInfo = new VkRenderPassBeginInfo
-				{
-					sType = VkStructureType.RenderPassBeginInfo,
-					renderPass = RenderPass,
-					framebuffer = SwapchainFramebuffers[i],
-					renderArea = new VkRect2D(0, 0, SwapchainExtent.width, SwapchainExtent.height),
-					clearValueCount = (uint)clearValues.Length
-				};
-				fixed (VkClearValue* ptr = clearValues) renderPassBeginInfo.pClearValues = ptr;
-
-				Vulkan.vkCmdBeginRenderPass(CommandBuffers[i], &renderPassBeginInfo, VkSubpassContents.Inline);
-
-				Vulkan.vkCmdBindPipeline(CommandBuffers[i], VkPipelineBindPoint.Graphics, GraphicsPipeline);
-
-				// Vulkan.vkCmdBindVertexBuffers(CommandBuffers[i], 0, VertexBuffer.Buffer);
-				// Vulkan.vkCmdBindIndexBuffer(CommandBuffers[i], IndexBuffer.Buffer, 0, IndexBuffer.IndexType);
-
-				Vulkan.vkCmdBindDescriptorSets(CommandBuffers[i], VkPipelineBindPoint.Graphics, PipelineLayout, 0, DescriptorSets[i]);
-
-				// Vulkan.vkCmdDrawIndexed(CommandBuffers[i], IndexBuffer.Length, 1, 0, 0, 0);
-				Vulkan.vkCmdEndRenderPass(CommandBuffers[i]);
-
-				Vulkan.vkEndCommandBuffer(CommandBuffers[i]).CheckResult();
-			}
-		}
-
 		private unsafe void CreateSyncObjects()
 		{
 			ImageAvailableSemaphores = new VkSemaphore[MaxFramesInFlight];
 			RenderFinishedSemaphores = new VkSemaphore[MaxFramesInFlight];
 			InFlightFences = new VkFence[MaxFramesInFlight];
-			ImagesInFlight = Enumerable.Repeat(VkFence.Null, SwapchainImages.Length).ToArray();
+			ImagesInFlight = Enumerable.Repeat(VkFence.Null, (int)Swapchain.Length).ToArray();
 
 			VkSemaphoreCreateInfo semaphoreCreateInfo = new VkSemaphoreCreateInfo { sType = VkStructureType.SemaphoreCreateInfo };
 			VkFenceCreateInfo fenceCreateInfo = new VkFenceCreateInfo
@@ -845,19 +573,12 @@ namespace Proxima.Graphics
 
 			foreach (VkFramebuffer framebuffer in SwapchainFramebuffers) Vulkan.vkDestroyFramebuffer(LogicalDevice, framebuffer, null);
 
-			fixed (VkCommandBuffer* ptr = CommandBuffers) Vulkan.vkFreeCommandBuffers(LogicalDevice, CommandPool, (uint)CommandBuffers.Length, ptr);
-
 			Vulkan.vkDestroyDescriptorPool(LogicalDevice, DescriptorPool, null);
 
 			Vulkan.vkDestroyPipeline(LogicalDevice, GraphicsPipeline, null);
 			Vulkan.vkDestroyPipelineLayout(LogicalDevice, PipelineLayout, null);
-			Vulkan.vkDestroyRenderPass(LogicalDevice, RenderPass, null);
-
-			foreach (VkImageView imageView in SwapchainImageViews) Vulkan.vkDestroyImageView(LogicalDevice, imageView, null);
 
 			foreach (UniformBuffer<UniformBufferObject> buffer in UniformBuffers) buffer.Dispose();
-
-			Vulkan.vkDestroySwapchainKHR(LogicalDevice, Swapchain, null);
 		}
 
 		private void RecreateSwapchain()
@@ -868,19 +589,18 @@ namespace Proxima.Graphics
 
 			CleanupSwapchain();
 
-			CreateSwapchain();
-			CreateImageViews();
-			CreateRenderPass();
+			Swapchain.Invalidate();
+
+			RenderPass.Invalidate();
+
 			CreateGraphicsPipeline();
 			CreateFramebuffers();
 
-			UniformBuffers = new UniformBuffer<UniformBufferObject>[SwapchainImages.Length];
+			UniformBuffers = new UniformBuffer<UniformBufferObject>[Swapchain.Length];
 			for (int i = 0; i < UniformBuffers.Length; i++) UniformBuffers[i] = new UniformBuffer<UniformBufferObject>(this);
 
 			CreateDescriptorPool();
 			CreateDescriptorSets();
-
-			CreateCommandBuffers();
 		}
 
 		public unsafe VkCommandBuffer Begin(Color4 color, uint index)
@@ -912,9 +632,9 @@ namespace Proxima.Graphics
 			VkRenderPassBeginInfo renderPassBeginInfo = new VkRenderPassBeginInfo
 			{
 				sType = VkStructureType.RenderPassBeginInfo,
-				renderPass = RenderPass,
+				renderPass = RenderPass.RenderPass,
 				framebuffer = SwapchainFramebuffers[index],
-				renderArea = new VkRect2D(0, 0, SwapchainExtent.width, SwapchainExtent.height),
+				renderArea = new VkRect2D(0, 0, Swapchain.Extent.width, Swapchain.Extent.height),
 				clearValueCount = (uint)clearValues.Length
 			};
 			fixed (VkClearValue* ptr = clearValues) renderPassBeginInfo.pClearValues = ptr;
@@ -939,7 +659,7 @@ namespace Proxima.Graphics
 		{
 			Vulkan.vkWaitForFences(LogicalDevice, InFlightFences[currentFrame], true, ulong.MaxValue);
 
-			VkResult result = Vulkan.vkAcquireNextImageKHR(LogicalDevice, Swapchain, uint.MaxValue, ImageAvailableSemaphores[currentFrame], VkFence.Null, out begunFrameIndex);
+			VkResult result = Vulkan.vkAcquireNextImageKHR(LogicalDevice, Swapchain.Swapchain, uint.MaxValue, ImageAvailableSemaphores[currentFrame], VkFence.Null, out begunFrameIndex);
 			if (result == VkResult.ErrorOutOfDateKHR)
 			{
 				RecreateSwapchain();
@@ -990,7 +710,7 @@ namespace Proxima.Graphics
 			fixed (uint* ptr = &begunFrameIndex) presentInfo.pImageIndices = ptr;
 			fixed (VkSemaphore* ptr = signalSemaphores) presentInfo.pWaitSemaphores = ptr;
 
-			VkSwapchainKHR[] swapchains = { Swapchain };
+			VkSwapchainKHR[] swapchains = { Swapchain.Swapchain };
 			fixed (VkSwapchainKHR* ptr = swapchains) presentInfo.pSwapchains = ptr;
 
 			VkResult result = Vulkan.vkQueuePresentKHR(PresentQueue, &presentInfo);
@@ -1011,7 +731,7 @@ namespace Proxima.Graphics
 			{
 				Model = Matrix4x4.Identity,
 				View = Matrix4x4.Identity,
-				Projection = Matrix4x4.CreateOrthographic(SwapchainExtent.width, SwapchainExtent.height, -1f, 1f)
+				Projection = Matrix4x4.CreateOrthographic(Swapchain.Extent.width, Swapchain.Extent.height, -1f, 1f)
 			};
 
 			// ubo.Projection = Matrix4x4.CreatePerspectiveFieldOfView(MathHelper.ToRadians(45f), SwapchainExtent.Width / (float)SwapchainExtent.Height, 0.1f, 100f);
@@ -1025,6 +745,9 @@ namespace Proxima.Graphics
 			Vulkan.vkDeviceWaitIdle(LogicalDevice);
 
 			CleanupSwapchain();
+
+			RenderPass.Dispose();
+			Swapchain.Dispose();
 
 			Vulkan.vkDestroyDescriptorSetLayout(LogicalDevice, DescriptorSetLayout, null);
 
@@ -1049,21 +772,7 @@ namespace Proxima.Graphics
 
 		#region Helper Methods
 
-		private static unsafe VkShaderModule CreateShaderModule(VkDevice device, byte[] data)
-		{
-			VkShaderModuleCreateInfo createInfo = new VkShaderModuleCreateInfo
-			{
-				sType = VkStructureType.ShaderModuleCreateInfo,
-				codeSize = new VkPointerSize((uint)data.Length)
-			};
-
-			fixed (byte* ptr = data) createInfo.pCode = (uint*)ptr;
-
-			Vulkan.vkCreateShaderModule(device, &createInfo, null, out VkShaderModule module).CheckResult();
-			return module;
-		}
-
-		private static SwapChainSupportDetails QuerySwapchainSupport(VkPhysicalDevice device, VkSurfaceKHR surface)
+		internal static SwapChainSupportDetails QuerySwapchainSupport(VkPhysicalDevice device, VkSurfaceKHR surface)
 		{
 			SwapChainSupportDetails details = new SwapChainSupportDetails();
 
@@ -1093,7 +802,7 @@ namespace Proxima.Graphics
 			return new VkStringArray(extensions);
 		}
 
-		private static QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface)
+		internal static QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface)
 		{
 			QueueFamilyIndices indices = new QueueFamilyIndices();
 

@@ -91,6 +91,8 @@ namespace Proxima
 
 		public static void Begin(Color color)
 		{
+			
+			
 			buffer = gd.Begin(new Color4(color), imageIndex);
 		}
 
