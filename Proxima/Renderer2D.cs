@@ -8,20 +8,11 @@ namespace Proxima
 {
 	public static class Renderer2D
 	{
-		private static GraphicsDevice gd;
-
 		public struct Vertex
 		{
-			public Vector3 position;
-			private Color4 color;
-			private Vector2 uv;
-
-			public Vertex(float x, float y, float z, float r, float g, float b, float u, float v)
-			{
-				position = new Vector3(x, y, z);
-				color = new Color4(r, g, b);
-				uv = new Vector2(u, v);
-			}
+			public Vector3 Position;
+			public Color4 Color;
+			public Vector2 UV;
 
 			public static unsafe VkVertexInputBindingDescription GetBindingDescription()
 			{
@@ -60,40 +51,72 @@ namespace Proxima
 			}
 		}
 
+		private static GraphicsDevice gd;
+
+		public const int MaxQuads = 1000;
+
 		internal static void Initialize(GraphicsDevice graphicsDevice)
 		{
 			gd = graphicsDevice;
+			gd.OnInvalidate += () => GraphicsPipeline.Invalidate();
 
-			VertexBuffer = new VertexBuffer<Vertex>(gd, 1000 * 4);
-			IndexBuffer = new IndexBuffer<uint>(gd, 1000 * 6);
+			GraphicsPipeline = new GraphicsPipeline(gd, typeof(UniformBufferObject));
+
+			VertexBuffer = new VertexBuffer<Vertex>(gd, MaxQuads * 4);
+			IndexBuffer = new IndexBuffer<uint>(gd, MaxQuads * 6);
 		}
 
 		internal static void Cleanup()
 		{
 			Vulkan.vkDeviceWaitIdle(gd.LogicalDevice);
-			
+
+			GraphicsPipeline.Dispose();
+
 			VertexBuffer.Dispose();
 			IndexBuffer.Dispose();
 		}
 
-		internal static VkCommandBuffer buffer;
-		public static uint imageIndex;
+		public struct UniformBufferObject
+		{
+			public Matrix4x4 Camera;
+		}
+
+		private static VkCommandBuffer buffer;
+		private static GraphicsPipeline GraphicsPipeline;
 
 		private static List<Vertex> vertices = new List<Vertex>();
 		private static List<uint> indices = new List<uint>();
 		private static VertexBuffer<Vertex> VertexBuffer;
 		private static IndexBuffer<uint> IndexBuffer;
 
-		public static void Begin(Color4 color)
+		public static void Begin(Matrix4x4 camera, Color4 color)
 		{
-			buffer = gd.Begin(color, imageIndex);
+			UniformBufferObject ubo = new UniformBufferObject
+			{
+				Camera = camera
+			};
+
+			// ubo.Projection = Matrix4x4.CreatePerspectiveFieldOfView(MathHelper.ToRadians(45f), SwapchainExtent.Width / (float)SwapchainExtent.Height, 0.1f, 100f);
+			// ubo.Projection.M22 *= -1;
+
+			GraphicsPipeline.UniformBuffers[gd.CurrentFrameIndex].SetData(ubo);
+
+			buffer = gd.Begin(color, gd.CurrentFrameIndex, GraphicsPipeline);
 		}
 
-		public static void Begin(Color color)
+		public static void Begin(Matrix4x4 camera, Color color)
 		{
-			
-			
-			buffer = gd.Begin(new Color4(color), imageIndex);
+			UniformBufferObject ubo = new UniformBufferObject
+			{
+				Camera = camera
+			};
+
+			// ubo.Projection = Matrix4x4.CreatePerspectiveFieldOfView(MathHelper.ToRadians(45f), SwapchainExtent.Width / (float)SwapchainExtent.Height, 0.1f, 100f);
+			// ubo.Projection.M22 *= -1;
+
+			GraphicsPipeline.UniformBuffers[gd.CurrentFrameIndex].SetData(ubo);
+
+			buffer = gd.Begin(new Color4(color), gd.CurrentFrameIndex, GraphicsPipeline);
 		}
 
 		public static void End()
@@ -107,7 +130,7 @@ namespace Proxima
 			Vulkan.vkCmdBindVertexBuffers(buffer, 0, VertexBuffer.Buffer);
 			Vulkan.vkCmdBindIndexBuffer(buffer, IndexBuffer.Buffer, 0, IndexBuffer.IndexType);
 
-			Vulkan.vkCmdBindDescriptorSets(buffer, VkPipelineBindPoint.Graphics, gd.PipelineLayout, 0, gd.DescriptorSets[imageIndex]);
+			Vulkan.vkCmdBindDescriptorSets(buffer, VkPipelineBindPoint.Graphics, GraphicsPipeline.PipelineLayout, 0, GraphicsPipeline.DescriptorSets[gd.CurrentFrameIndex]);
 
 			Vulkan.vkCmdDrawIndexed(buffer, IndexBuffer.Length, 1, 0, 0, 0);
 
@@ -119,10 +142,11 @@ namespace Proxima
 		public static void DrawQuad(Vector2 position, Vector2 size, Color4 color)
 		{
 			var (r, g, b, a) = color;
-			vertices.Add(new Vertex(position.X - size.X * 0.5f, position.Y - size.Y * 0.5f, 0f, r, g, b, 0f, 0f));
-			vertices.Add(new Vertex(position.X + size.X * 0.5f, position.Y - size.Y * 0.5f, 0f, r, g, b, 1f, 0f));
-			vertices.Add(new Vertex(position.X + size.X * 0.5f, position.Y + size.Y * 0.5f, 0f, r, g, b, 1f, 1f));
-			vertices.Add(new Vertex(position.X - size.X * 0.5f, position.Y + size.Y * 0.5f, 0f, r, g, b, 0f, 1f));
+
+			vertices.Add(new Vertex { Position = new Vector3(position.X - size.X * 0.5f, position.Y - size.Y * 0.5f, 0f), Color = new Color4(r, g, b, a), UV = new Vector2(0f, 0f) });
+			vertices.Add(new Vertex { Position = new Vector3(position.X + size.X * 0.5f, position.Y - size.Y * 0.5f, 0f), Color = new Color4(r, g, b, a), UV = new Vector2(1f, 0f) });
+			vertices.Add(new Vertex { Position = new Vector3(position.X + size.X * 0.5f, position.Y + size.Y * 0.5f, 0f), Color = new Color4(r, g, b, a), UV = new Vector2(1f, 1f) });
+			vertices.Add(new Vertex { Position = new Vector3(position.X - size.X * 0.5f, position.Y + size.Y * 0.5f, 0f), Color = new Color4(r, g, b, a), UV = new Vector2(0f, 1f) });
 
 			indices.Add(nextQuadID * 4 + 0);
 			indices.Add(nextQuadID * 4 + 1);
@@ -141,10 +165,10 @@ namespace Proxima
 			float b = color.B / 255f;
 			float a = color.A / 255f;
 
-			vertices.Add(new Vertex(position.X - size.X * 0.5f, position.Y - size.Y * 0.5f, 0f, r, g, b, 0f, 0f));
-			vertices.Add(new Vertex(position.X + size.X * 0.5f, position.Y - size.Y * 0.5f, 0f, r, g, b, 1f, 0f));
-			vertices.Add(new Vertex(position.X + size.X * 0.5f, position.Y + size.Y * 0.5f, 0f, r, g, b, 1f, 1f));
-			vertices.Add(new Vertex(position.X - size.X * 0.5f, position.Y + size.Y * 0.5f, 0f, r, g, b, 0f, 1f));
+			vertices.Add(new Vertex { Position = new Vector3(position.X - size.X * 0.5f, position.Y - size.Y * 0.5f, 0f), Color = new Color4(r, g, b, a), UV = new Vector2(0f, 0f) });
+			vertices.Add(new Vertex { Position = new Vector3(position.X + size.X * 0.5f, position.Y - size.Y * 0.5f, 0f), Color = new Color4(r, g, b, a), UV = new Vector2(1f, 0f) });
+			vertices.Add(new Vertex { Position = new Vector3(position.X + size.X * 0.5f, position.Y + size.Y * 0.5f, 0f), Color = new Color4(r, g, b, a), UV = new Vector2(1f, 1f) });
+			vertices.Add(new Vertex { Position = new Vector3(position.X - size.X * 0.5f, position.Y + size.Y * 0.5f, 0f), Color = new Color4(r, g, b, a), UV = new Vector2(0f, 1f) });
 
 			indices.Add(nextQuadID * 4 + 0);
 			indices.Add(nextQuadID * 4 + 1);

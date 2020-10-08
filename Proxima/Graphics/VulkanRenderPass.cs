@@ -6,11 +6,11 @@ namespace Proxima.Graphics
 	{
 		public VkRenderPass RenderPass { get; private set; }
 
-		public unsafe VulkanRenderPass(GraphicsDevice graphicsDevice) : base(graphicsDevice)
+		public unsafe VulkanRenderPass(GraphicsDevice graphicsDevice, VkFormat surfaceFormatFormat) : base(graphicsDevice)
 		{
 			VkAttachmentDescription colorAttachment = new VkAttachmentDescription
 			{
-				format = graphicsDevice.Swapchain.Format,
+				format = surfaceFormatFormat,
 				samples = VkSampleCountFlags.Count1,
 				loadOp = VkAttachmentLoadOp.Clear,
 				storeOp = VkAttachmentStoreOp.Store,

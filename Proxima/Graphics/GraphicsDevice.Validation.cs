@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using Vortice.Vulkan;
 
@@ -23,7 +24,12 @@ namespace Proxima.Graphics
 			string message = Interop.GetString(pCallbackData->pMessage);
 			if (messageTypes == VkDebugUtilsMessageTypeFlagsEXT.Validation)
 			{
-				if (messageSeverity == VkDebugUtilsMessageSeverityFlagsEXT.Error) Log.Error($"[Vulkan]: Validation: {messageSeverity} - {message}");
+				if (messageSeverity == VkDebugUtilsMessageSeverityFlagsEXT.Error)
+				{
+					Log.Error($"[Vulkan]: Validation: {messageSeverity} - {message}");
+
+					if (pCallbackData->messageIdNumber != 0xde3cbaf) throw new Exception("");
+				}
 				else if (messageSeverity == VkDebugUtilsMessageSeverityFlagsEXT.Warning) Log.Warn($"[Vulkan]: Validation: {messageSeverity} - {message}");
 				else Log.Info($"[Vulkan]: Validation: {messageSeverity} - {message}");
 			}
@@ -78,6 +84,15 @@ namespace Proxima.Graphics
 			}
 
 			return true;
+		}
+
+		private VkStringArray GetRequiredLayers()
+		{
+			List<string> layers = new List<string> { "VK_LAYER_LUNARG_monitor" };
+
+			if (ValidationEnabled) layers.Add("VK_LAYER_KHRONOS_validation");
+
+			return new VkStringArray(layers);
 		}
 	}
 }

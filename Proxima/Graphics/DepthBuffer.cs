@@ -1,4 +1,3 @@
-using Vortice.Mathematics;
 using Vortice.Vulkan;
 
 namespace Proxima.Graphics
@@ -8,10 +7,15 @@ namespace Proxima.Graphics
 		private VkImage image;
 		private VkDeviceMemory memory;
 
-		public VkFormat Format { get; }
-		public VkImageView View { get; }
+		public VkFormat Format { get; private set; }
+		public VkImageView View { get; private set; }
 
-		public unsafe DepthBuffer(GraphicsDevice graphicsDevice, Size size) : base(graphicsDevice)
+		public DepthBuffer(GraphicsDevice graphicsDevice, VkExtent2D size) : base(graphicsDevice)
+		{
+			Create(size);
+		}
+
+		private unsafe void Create(VkExtent2D size)
 		{
 			Format = VulkanUtils.FindDepthFormat(graphicsDevice);
 
@@ -19,7 +23,7 @@ namespace Proxima.Graphics
 			{
 				sType = VkStructureType.ImageCreateInfo,
 				imageType = VkImageType.Image2D,
-				extent = new VkExtent3D(size.Width, size.Height, 1),
+				extent = new VkExtent3D(size.width, size.height, 1),
 				mipLevels = 1,
 				arrayLayers = 1,
 				format = Format,
@@ -65,6 +69,13 @@ namespace Proxima.Graphics
 			View = view;
 
 			VulkanUtils.TransitionImageLayout(graphicsDevice, image, Format, VkImageLayout.Undefined, VkImageLayout.DepthAttachmentOptimal);
+		}
+
+		public void Invalidate(VkExtent2D extent)
+		{
+			Dispose();
+
+			Create(extent);
 		}
 
 		public override unsafe void Dispose()

@@ -16,7 +16,7 @@ namespace Proxima
 			public bool VSync;
 		}
 
-		private NativeWindow window;
+		protected NativeWindow window;
 		protected GraphicsDevice GraphicsDevice;
 
 		public Application(Options options)

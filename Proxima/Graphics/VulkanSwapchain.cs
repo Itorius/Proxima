@@ -1,7 +1,4 @@
-using System;
-using GLFW;
 using Vortice.Vulkan;
-using Vulkan = Vortice.Vulkan.Vulkan;
 
 namespace Proxima.Graphics
 {
@@ -23,9 +20,9 @@ namespace Proxima.Graphics
 		{
 			GraphicsDevice.SwapChainSupportDetails details = GraphicsDevice.QuerySwapchainSupport(graphicsDevice.PhysicalDevice, graphicsDevice.Surface);
 
-			VkSurfaceFormatKHR surfaceFormat = SelectSwapSurfaceFormat(details.formats);
-			VkPresentModeKHR presentMode = SelectSwapPresentMode(details.presentModes);
-			VkExtent2D extent = SelectSwapExtent(details.capabilities, graphicsDevice.window);
+			VkSurfaceFormatKHR surfaceFormat = VulkanUtils.SelectSwapSurfaceFormat(details.formats);
+			VkPresentModeKHR presentMode = VulkanUtils.SelectSwapPresentMode(details.presentModes);
+			VkExtent2D extent = VulkanUtils.SelectSwapExtent(details.capabilities, graphicsDevice.window);
 
 			uint imageCount = details.capabilities.minImageCount + 1;
 			if (details.capabilities.maxImageCount > 0 && imageCount > details.capabilities.maxImageCount) imageCount = details.capabilities.maxImageCount;
@@ -93,42 +90,6 @@ namespace Proxima.Graphics
 
 				Vulkan.vkCreateImageView(graphicsDevice.LogicalDevice, &imageViewCreateInfo, null, out ImageViews[i]).CheckResult();
 			}
-
-			#region Static
-
-			static VkSurfaceFormatKHR SelectSwapSurfaceFormat(ReadOnlySpan<VkSurfaceFormatKHR> formats)
-			{
-				foreach (VkSurfaceFormatKHR format in formats)
-				{
-					if (format.format == VkFormat.B8G8R8A8SRgb && format.colorSpace == VkColorSpaceKHR.SrgbNonLinear) return format;
-				}
-
-				return formats[0];
-			}
-
-			static VkPresentModeKHR SelectSwapPresentMode(ReadOnlySpan<VkPresentModeKHR> presentModes)
-			{
-				foreach (VkPresentModeKHR presentMode in presentModes)
-				{
-					if (presentMode == VkPresentModeKHR.Mailbox) return presentMode;
-				}
-
-				return VkPresentModeKHR.Fifo;
-			}
-
-			static VkExtent2D SelectSwapExtent(VkSurfaceCapabilitiesKHR capabilities, NativeWindow window)
-			{
-				if (capabilities.currentExtent.width != int.MaxValue) return capabilities.currentExtent;
-
-				VkExtent2D actualExtent = new VkExtent2D(window.Size.Width, window.Size.Height);
-
-				actualExtent.width = Math.Clamp(actualExtent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
-				actualExtent.height = Math.Clamp(actualExtent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
-
-				return actualExtent;
-			}
-
-			#endregion
 		}
 
 		public override unsafe void Dispose()

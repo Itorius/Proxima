@@ -1,7 +1,9 @@
+using System;
 using System.Collections.Generic;
 using GLFW;
 using Vortice.Mathematics;
 using Vortice.Vulkan;
+using Exception = GLFW.Exception;
 using Vulkan = Vortice.Vulkan.Vulkan;
 
 namespace Proxima.Graphics
@@ -213,6 +215,38 @@ namespace Proxima.Graphics
 		public static bool HasStencilComponent(VkFormat format)
 		{
 			return format == VkFormat.D32SFloatS8UInt || format == VkFormat.D24UNormS8UInt;
+		}
+		
+		public static VkSurfaceFormatKHR SelectSwapSurfaceFormat(ReadOnlySpan<VkSurfaceFormatKHR> formats)
+		{
+			foreach (VkSurfaceFormatKHR format in formats)
+			{
+				if (format.format == VkFormat.B8G8R8A8SRgb && format.colorSpace == VkColorSpaceKHR.SrgbNonLinear) return format;
+			}
+
+			return formats[0];
+		}
+
+		public 	static VkPresentModeKHR SelectSwapPresentMode(ReadOnlySpan<VkPresentModeKHR> presentModes)
+		{
+			foreach (VkPresentModeKHR presentMode in presentModes)
+			{
+				if (presentMode == VkPresentModeKHR.Mailbox) return presentMode;
+			}
+
+			return VkPresentModeKHR.Fifo;
+		}
+
+		public 	static VkExtent2D SelectSwapExtent(VkSurfaceCapabilitiesKHR capabilities, NativeWindow window)
+		{
+			if (capabilities.currentExtent.width != int.MaxValue) return capabilities.currentExtent;
+
+			VkExtent2D actualExtent = new VkExtent2D(window.Size.Width, window.Size.Height);
+
+			actualExtent.width = Math.Clamp(actualExtent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
+			actualExtent.height = Math.Clamp(actualExtent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
+
+			return actualExtent;
 		}
 	}
 }
