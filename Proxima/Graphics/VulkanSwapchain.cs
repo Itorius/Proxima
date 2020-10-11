@@ -18,14 +18,14 @@ namespace Proxima.Graphics
 
 		private unsafe void Create()
 		{
-			GraphicsDevice.SwapChainSupportDetails details = GraphicsDevice.QuerySwapchainSupport(graphicsDevice.PhysicalDevice, graphicsDevice.Surface);
+			var (capabilities, formats, presentModes) = VulkanUtils.QuerySwapchainSupport(graphicsDevice.PhysicalDevice, graphicsDevice.Surface);
 
-			VkSurfaceFormatKHR surfaceFormat = VulkanUtils.SelectSwapSurfaceFormat(details.formats);
-			VkPresentModeKHR presentMode = VulkanUtils.SelectSwapPresentMode(details.presentModes);
-			VkExtent2D extent = VulkanUtils.SelectSwapExtent(details.capabilities, graphicsDevice.window);
+			VkSurfaceFormatKHR surfaceFormat = VulkanUtils.SelectSwapSurfaceFormat(formats);
+			VkPresentModeKHR presentMode = VulkanUtils.SelectSwapPresentMode(presentModes);
+			VkExtent2D extent = VulkanUtils.SelectSwapExtent(capabilities, graphicsDevice.window);
 
-			uint imageCount = details.capabilities.minImageCount + 1;
-			if (details.capabilities.maxImageCount > 0 && imageCount > details.capabilities.maxImageCount) imageCount = details.capabilities.maxImageCount;
+			uint imageCount = capabilities.minImageCount + 1;
+			if (capabilities.maxImageCount > 0 && imageCount > capabilities.maxImageCount) imageCount = capabilities.maxImageCount;
 
 			VkSwapchainCreateInfoKHR createInfo = new VkSwapchainCreateInfoKHR
 			{
@@ -37,14 +37,14 @@ namespace Proxima.Graphics
 				imageExtent = extent,
 				imageArrayLayers = 1,
 				imageUsage = VkImageUsageFlags.ColorAttachment,
-				preTransform = details.capabilities.currentTransform,
+				preTransform = capabilities.currentTransform,
 				compositeAlpha = VkCompositeAlphaFlagsKHR.Opaque,
 				presentMode = presentMode,
 				clipped = true,
 				oldSwapchain = VkSwapchainKHR.Null
 			};
 
-			GraphicsDevice.QueueFamilyIndices indices = GraphicsDevice.FindQueueFamilies(graphicsDevice.PhysicalDevice, graphicsDevice.Surface);
+			QueueFamilyIndices indices = VulkanUtils.FindQueueFamilies(graphicsDevice.PhysicalDevice, graphicsDevice.Surface);
 			uint[] queueFamilyIndices = { indices.graphics.Value, indices.present.Value };
 
 			if (indices.graphics.Value != indices.present.Value)

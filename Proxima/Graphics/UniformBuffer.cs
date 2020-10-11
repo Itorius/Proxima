@@ -1,3 +1,4 @@
+using System;
 using Vortice.Vulkan;
 
 namespace Proxima.Graphics
@@ -20,18 +21,18 @@ namespace Proxima.Graphics
 			Size = (ulong)sizeof(T);
 
 			var (buffer, memory) = VulkanUtils.CreateBuffer(graphicsDevice, Size, VkBufferUsageFlags.UniformBuffer, VkMemoryPropertyFlags.HostVisible | VkMemoryPropertyFlags.HostCoherent);
-			VkBuffer = buffer;
-			Memory = memory;
+			this.buffer = buffer;
+			this.memory = memory;
 		}
 
 		public override unsafe void SetData(object data)
 		{
-			T p = (T)data;
+			if (!(data is T p)) throw new Exception($"Wrong uniform data type, expected '{typeof(T).FullName}'");
 
 			void* dataPtr = null;
-			Vulkan.vkMapMemory(graphicsDevice.LogicalDevice, Memory, 0, Size, 0, &dataPtr);
+			Vulkan.vkMapMemory(graphicsDevice.LogicalDevice, memory, 0, Size, 0, &dataPtr);
 			System.Buffer.MemoryCopy(&p, dataPtr, Size, Size);
-			Vulkan.vkUnmapMemory(graphicsDevice.LogicalDevice, Memory);
+			Vulkan.vkUnmapMemory(graphicsDevice.LogicalDevice, memory);
 		}
 	}
 }

@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using GLFW;
-using Vortice.Mathematics;
 using Vortice.Vulkan;
 using Exception = GLFW.Exception;
 using Vulkan = Vortice.Vulkan.Vulkan;
@@ -216,8 +216,8 @@ namespace Proxima.Graphics
 		{
 			return format == VkFormat.D32SFloatS8UInt || format == VkFormat.D24UNormS8UInt;
 		}
-		
-		public static VkSurfaceFormatKHR SelectSwapSurfaceFormat(ReadOnlySpan<VkSurfaceFormatKHR> formats)
+
+		public static VkSurfaceFormatKHR SelectSwapSurfaceFormat(IReadOnlyList<VkSurfaceFormatKHR> formats)
 		{
 			foreach (VkSurfaceFormatKHR format in formats)
 			{
@@ -227,7 +227,7 @@ namespace Proxima.Graphics
 			return formats[0];
 		}
 
-		public 	static VkPresentModeKHR SelectSwapPresentMode(ReadOnlySpan<VkPresentModeKHR> presentModes)
+		public static VkPresentModeKHR SelectSwapPresentMode(IReadOnlyList<VkPresentModeKHR> presentModes)
 		{
 			foreach (VkPresentModeKHR presentMode in presentModes)
 			{
@@ -237,7 +237,7 @@ namespace Proxima.Graphics
 			return VkPresentModeKHR.Fifo;
 		}
 
-		public 	static VkExtent2D SelectSwapExtent(VkSurfaceCapabilitiesKHR capabilities, NativeWindow window)
+		public static VkExtent2D SelectSwapExtent(VkSurfaceCapabilitiesKHR capabilities, NativeWindow window)
 		{
 			if (capabilities.currentExtent.width != int.MaxValue) return capabilities.currentExtent;
 
@@ -248,5 +248,64 @@ namespace Proxima.Graphics
 
 			return actualExtent;
 		}
+
+		internal static (VkSurfaceCapabilitiesKHR capabilities, IReadOnlyList<VkSurfaceFormatKHR> formats, IReadOnlyList<VkPresentModeKHR> presentModes) QuerySwapchainSupport(VkPhysicalDevice device, VkSurfaceKHR surface)
+		{
+			Vulkan.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, out var capabilities);
+
+			return (capabilities, Vulkan.vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface).ToArray(), Vulkan.vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface).ToArray());
+		}
+
+		internal static bool CheckDeviceExtensionSupport(VkPhysicalDevice device, VkStringArray requestedExtensions)
+		{
+			var extensions = Vulkan.vkEnumerateDeviceExtensionProperties(device).ToArray().Select(property => property.GetExtensionName()).ToList();
+
+			bool flag = true;
+			for (int i = 0; i < requestedExtensions.Length; i++) flag &= extensions.Contains(requestedExtensions[i]);
+			return flag;
+		}
+
+		internal static VkStringArray GetRequiredExtensions(bool includeValidation = false)
+		{
+			List<string> extensions = GLFW.Vulkan.GetRequiredInstanceExtensions().ToList();
+
+			if (includeValidation) extensions.Add(Vulkan.EXTDebugUtilsExtensionName);
+
+			return new VkStringArray(extensions);
+		}
+
+		internal static QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface)
+		{
+			QueueFamilyIndices indices = new QueueFamilyIndices();
+
+			var properties = Vulkan.vkGetPhysicalDeviceQueueFamilyProperties(device);
+
+			uint i = 0;
+			foreach (VkQueueFamilyProperties property in properties)
+			{
+				if ((property.queueFlags & VkQueueFlags.Graphics) != 0)
+				{
+					indices.graphics = i;
+
+					Vulkan.vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, out VkBool32 presentSupport);
+					if (presentSupport) indices.present = i;
+				}
+
+				if (indices.IsComplete) break;
+
+				i++;
+			}
+
+
+			return indices;
+		}
+	}
+
+	internal struct QueueFamilyIndices
+	{
+		public uint? graphics;
+		public uint? present;
+
+		public bool IsComplete => graphics.HasValue && present.HasValue;
 	}
 }

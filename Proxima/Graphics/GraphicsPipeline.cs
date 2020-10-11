@@ -110,7 +110,7 @@ namespace Proxima.Graphics
 			{
 				VkDescriptorBufferInfo bufferInfo = new VkDescriptorBufferInfo
 				{
-					buffer = UniformBuffers[i].VkBuffer,
+					buffer = (VkBuffer)UniformBuffers[i],
 					offset = 0,
 					range = UniformBuffers[i].Size
 				};
@@ -152,8 +152,10 @@ namespace Proxima.Graphics
 
 		private unsafe void CreateGraphicsPipeline()
 		{
+			// todo: abstract this out
 			Shader shader = new Shader(graphicsDevice, "Assets/test.vert.spv", "Assets/test.frag.spv");
 
+			// todo: abstract this out
 			var bindingDescription = Renderer2D.Vertex.GetBindingDescription();
 			var attributeDescriptions = Renderer2D.Vertex.GetAttributeDescriptions();
 
@@ -237,7 +239,7 @@ namespace Proxima.Graphics
 			VkPipelineDynamicStateCreateInfo dynamicState = new VkPipelineDynamicStateCreateInfo
 			{
 				sType = VkStructureType.PipelineDynamicStateCreateInfo,
-				dynamicStateCount = 2
+				dynamicStateCount = (uint)dynamicStates.Length
 			};
 
 			fixed (VkDynamicState* ptr = dynamicStates) dynamicState.pDynamicStates = ptr;

@@ -39,7 +39,7 @@ namespace Sandbox
 
 			Renderer2D.Begin(view * projection, System.Drawing.Color.Black);
 
-			const int toms = 100;
+			const int toms = 25;
 			for (int i = 0; i < toms; i++)
 			{
 				float angle = MathF.Tau / toms * i + Time.TotalUpdateTime;

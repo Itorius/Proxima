@@ -4,18 +4,21 @@ namespace Proxima.Graphics
 {
 	public abstract class Buffer : GraphicsObject
 	{
-		public VkDeviceMemory Memory { get; protected set; }
-		public VkBuffer VkBuffer { get; protected set; }
-		public ulong Size { get; protected set;}
-		
+		public ulong Size { get; protected set; }
+
+		protected VkBuffer buffer;
+		protected VkDeviceMemory memory;
+
 		protected Buffer(GraphicsDevice graphicsDevice) : base(graphicsDevice)
 		{
 		}
-		
+
+		public static explicit operator VkBuffer(Buffer buffer) => buffer.buffer;
+
 		public override unsafe void Dispose()
 		{
-			Vulkan.vkDestroyBuffer(graphicsDevice.LogicalDevice, VkBuffer, null);
-			Vulkan.vkFreeMemory(graphicsDevice.LogicalDevice, Memory, null);
+			if (buffer != VkBuffer.Null) Vulkan.vkDestroyBuffer(graphicsDevice.LogicalDevice, buffer, null);
+			if (memory != VkDeviceMemory.Null) Vulkan.vkFreeMemory(graphicsDevice.LogicalDevice, memory, null);
 		}
 	}
 }

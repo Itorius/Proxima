@@ -11,21 +11,6 @@ namespace Proxima.Graphics
 {
 	public sealed partial class GraphicsDevice : IDisposable
 	{
-		internal struct QueueFamilyIndices
-		{
-			public uint? graphics;
-			public uint? present;
-
-			public bool IsComplete => graphics.HasValue && present.HasValue;
-		}
-
-		internal ref struct SwapChainSupportDetails
-		{
-			public VkSurfaceCapabilitiesKHR capabilities;
-			public ReadOnlySpan<VkSurfaceFormatKHR> formats;
-			public ReadOnlySpan<VkPresentModeKHR> presentModes;
-		}
-
 		private static readonly VkStringArray DeviceExtensions = new VkStringArray(new[] { Vulkan.KHRSwapchainExtensionName });
 
 		internal NativeWindow window;
@@ -83,9 +68,9 @@ namespace Proxima.Graphics
 
 			CreateCommandPool();
 
-			SwapChainSupportDetails details = QuerySwapchainSupport(PhysicalDevice, Surface);
+			var (_, formats, _) = VulkanUtils.QuerySwapchainSupport(PhysicalDevice, Surface);
 
-			VkSurfaceFormatKHR surfaceFormat = VulkanUtils.SelectSwapSurfaceFormat(details.formats);
+			VkSurfaceFormatKHR surfaceFormat = VulkanUtils.SelectSwapSurfaceFormat(formats);
 
 			RenderPass = new VulkanRenderPass(this, surfaceFormat.format);
 
@@ -117,7 +102,7 @@ namespace Proxima.Graphics
 				Log.Debug(properties.GetExtensionName());
 			}
 
-			using VkStringArray vkInstanceExtensions = GetRequiredExtensions();
+			using VkStringArray vkInstanceExtensions = VulkanUtils.GetRequiredExtensions(ValidationEnabled);
 
 			VkStringArray layers = GetRequiredLayers();
 			VkInstanceCreateInfo createInfo = new VkInstanceCreateInfo
@@ -161,18 +146,18 @@ namespace Proxima.Graphics
 				Vulkan.vkGetPhysicalDeviceProperties(device, out VkPhysicalDeviceProperties properties);
 				Vulkan.vkGetPhysicalDeviceFeatures(device, out VkPhysicalDeviceFeatures features);
 
-				QueueFamilyIndices indices = FindQueueFamilies(device, surface);
+				QueueFamilyIndices indices = VulkanUtils.FindQueueFamilies(device, surface);
 
-				bool extensionsSupported = CheckDeviceExtensionSupport(device);
-				SwapChainSupportDetails details = QuerySwapchainSupport(device, surface);
+				bool extensionsSupported = VulkanUtils.CheckDeviceExtensionSupport(device, DeviceExtensions);
+				var (_, formats, presentModes) = VulkanUtils.QuerySwapchainSupport(device, surface);
 
-				return indices.IsComplete && extensionsSupported && !details.formats.IsEmpty && !details.presentModes.IsEmpty && features.samplerAnisotropy;
+				return indices.IsComplete && extensionsSupported && formats.Count > 0 && presentModes.Count > 0 && features.samplerAnisotropy;
 			}
 		}
 
 		private unsafe void CreateLogicalDevice()
 		{
-			QueueFamilyIndices indices = FindQueueFamilies(PhysicalDevice, Surface);
+			QueueFamilyIndices indices = VulkanUtils.FindQueueFamilies(PhysicalDevice, Surface);
 
 			List<uint> uniqueQueueFamilies = new List<uint> { indices.graphics.Value, indices.present.Value };
 			VkDeviceQueueCreateInfo[] queueCreateInfos = new VkDeviceQueueCreateInfo[uniqueQueueFamilies.Count];
@@ -253,7 +238,7 @@ namespace Proxima.Graphics
 
 		private unsafe void CreateCommandPool()
 		{
-			QueueFamilyIndices indices = FindQueueFamilies(PhysicalDevice, Surface);
+			QueueFamilyIndices indices = VulkanUtils.FindQueueFamilies(PhysicalDevice, Surface);
 
 			VkCommandPoolCreateInfo commandPoolCreateInfo = new VkCommandPoolCreateInfo
 			{
@@ -296,13 +281,12 @@ namespace Proxima.Graphics
 			Vulkan.vkDeviceWaitIdle(LogicalDevice);
 
 			Swapchain.Invalidate();
+			RenderPass.Invalidate();
 
 			DepthBuffer.Invalidate(Swapchain.Extent);
 
 			foreach (VkFramebuffer framebuffer in Framebuffers) Vulkan.vkDestroyFramebuffer(LogicalDevice, framebuffer, null);
 			CreateFramebuffers();
-
-			RenderPass.Invalidate();
 
 			OnInvalidate.Invoke();
 		}
@@ -361,6 +345,13 @@ namespace Proxima.Graphics
 
 		public uint CurrentFrameIndex { get; private set; }
 
+		private List<VkCommandBuffer> buffers = new List<VkCommandBuffer>();
+
+		public void SubmitCommandBuffer(VkCommandBuffer buffer)
+		{
+			buffers.Add(buffer);
+		}
+
 		internal void BeginFrame()
 		{
 			Vulkan.vkWaitForFences(LogicalDevice, InFlightFences[currentFrame], true, ulong.MaxValue);
@@ -380,14 +371,7 @@ namespace Proxima.Graphics
 			ImagesInFlight[CurrentFrameIndex] = InFlightFences[currentFrame];
 		}
 
-		private List<VkCommandBuffer> buffers = new List<VkCommandBuffer>();
-
-		public void SubmitCommandBuffer(VkCommandBuffer buffer)
-		{
-			buffers.Add(buffer);
-		}
-
-		public unsafe void EndFrame()
+		internal unsafe void EndFrame()
 		{
 			VkSemaphore[] waitSemaphores = { ImageAvailableSemaphores[currentFrame] };
 			VkPipelineStageFlags[] waitStages = { VkPipelineStageFlags.ColorAttachmentOutput };
@@ -448,8 +432,6 @@ namespace Proxima.Graphics
 			RenderPass.Dispose();
 			Swapchain.Dispose();
 
-			// GraphicsPipeline.Dispose();
-
 			Texture.Dispose();
 
 			for (int i = 0; i < MaxFramesInFlight; i++)
@@ -468,63 +450,5 @@ namespace Proxima.Graphics
 			Vulkan.vkDestroyDevice(LogicalDevice, null);
 			Vulkan.vkDestroyInstance(Instance, null);
 		}
-
-		#region Helper Methods
-		internal static SwapChainSupportDetails QuerySwapchainSupport(VkPhysicalDevice device, VkSurfaceKHR surface)
-		{
-			SwapChainSupportDetails details = new SwapChainSupportDetails();
-
-			Vulkan.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, out details.capabilities);
-
-			details.formats = Vulkan.vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface);
-			details.presentModes = Vulkan.vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface);
-
-			return details;
-		}
-
-		private static bool CheckDeviceExtensionSupport(VkPhysicalDevice device)
-		{
-			var extensions = Vulkan.vkEnumerateDeviceExtensionProperties(device).ToArray().Select(property => property.GetExtensionName()).ToList();
-
-			bool containsAll = true;
-			for (int i = 0; i < DeviceExtensions.Length; i++) containsAll &= extensions.Contains(DeviceExtensions[i]);
-			return containsAll;
-		}
-
-		private VkStringArray GetRequiredExtensions()
-		{
-			List<string> extensions = GLFW.Vulkan.GetRequiredInstanceExtensions().ToList();
-
-			if (ValidationEnabled) extensions.Add(Vulkan.EXTDebugUtilsExtensionName);
-
-			return new VkStringArray(extensions);
-		}
-
-		internal static QueueFamilyIndices FindQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface)
-		{
-			QueueFamilyIndices indices = new QueueFamilyIndices();
-
-			var properties = Vulkan.vkGetPhysicalDeviceQueueFamilyProperties(device);
-
-			uint i = 0;
-			foreach (VkQueueFamilyProperties property in properties)
-			{
-				if ((property.queueFlags & VkQueueFlags.Graphics) != 0)
-				{
-					indices.graphics = i;
-
-					Vulkan.vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, out VkBool32 presentSupport);
-					if (presentSupport) indices.present = i;
-				}
-
-				if (indices.IsComplete) break;
-
-				i++;
-			}
-
-
-			return indices;
-		}
-		#endregion
 	}
 }
