@@ -224,7 +224,7 @@ namespace Proxima.Graphics
 				VkFramebufferCreateInfo framebufferCreateInfo = new VkFramebufferCreateInfo
 				{
 					sType = VkStructureType.FramebufferCreateInfo,
-					renderPass = RenderPass.RenderPass,
+					renderPass = (VkRenderPass)RenderPass,
 					attachmentCount = (uint)attachments.Length,
 					width = Swapchain.Extent.width,
 					height = Swapchain.Extent.height,
@@ -320,7 +320,7 @@ namespace Proxima.Graphics
 			VkRenderPassBeginInfo renderPassBeginInfo = new VkRenderPassBeginInfo
 			{
 				sType = VkStructureType.RenderPassBeginInfo,
-				renderPass = RenderPass.RenderPass,
+				renderPass = (VkRenderPass)RenderPass,
 				framebuffer = Framebuffers[index],
 				renderArea = new VkRect2D(0, 0, Swapchain.Extent.width, Swapchain.Extent.height),
 				clearValueCount = (uint)clearValues.Length

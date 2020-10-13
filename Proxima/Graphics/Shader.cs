@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.IO;
 using Vortice.Vulkan;
 
@@ -5,35 +6,40 @@ namespace Proxima.Graphics
 {
 	public class Shader : GraphicsObject
 	{
-		private VkShaderModule vertexModule, fragmentModule;
+		private VkShaderModule shaderModule;
 
-		public VkPipelineShaderStageCreateInfo[] Stages { get; }
+		public List<VkPipelineShaderStageCreateInfo> Stages { get; }
 
-		public Shader(GraphicsDevice graphicsDevice, string vertexPath, string fragmentPath) : base(graphicsDevice)
+		public Shader(GraphicsDevice graphicsDevice, string path) : base(graphicsDevice)
 		{
-			var vertex = File.ReadAllBytes(vertexPath);
-			var fragment = File.ReadAllBytes(fragmentPath);
+			byte[] data = File.ReadAllBytes(path);
+			shaderModule = CreateShaderModule(graphicsDevice.LogicalDevice, data);
+			Stages = new List<VkPipelineShaderStageCreateInfo>();
 
-			vertexModule = CreateShaderModule(graphicsDevice.LogicalDevice, vertex);
-			fragmentModule = CreateShaderModule(graphicsDevice.LogicalDevice, fragment);
-
-			VkPipelineShaderStageCreateInfo vertexCreateInfo = new VkPipelineShaderStageCreateInfo
+			var (shaderStages, entryPoints) = SPIRV.GetStages(path);
+			if ((shaderStages & ShaderStage.Vertex) == ShaderStage.Vertex)
 			{
-				sType = VkStructureType.PipelineShaderStageCreateInfo,
-				stage = VkShaderStageFlags.Vertex,
-				module = vertexModule,
-				pName = new VkString("main")
-			};
+				VkPipelineShaderStageCreateInfo createInfo = new VkPipelineShaderStageCreateInfo
+				{
+					sType = VkStructureType.PipelineShaderStageCreateInfo,
+					stage = VkShaderStageFlags.Vertex,
+					module = shaderModule,
+					pName = new VkString(entryPoints[ShaderStage.Vertex])
+				};
+				Stages.Add(createInfo);
+			}
 
-			VkPipelineShaderStageCreateInfo fragmentCreateInfo = new VkPipelineShaderStageCreateInfo
+			if ((shaderStages & ShaderStage.Fragment) == ShaderStage.Fragment)
 			{
-				sType = VkStructureType.PipelineShaderStageCreateInfo,
-				stage = VkShaderStageFlags.Fragment,
-				module = fragmentModule,
-				pName = new VkString("main")
-			};
-
-			Stages = new[] { vertexCreateInfo, fragmentCreateInfo };
+				VkPipelineShaderStageCreateInfo createInfo = new VkPipelineShaderStageCreateInfo
+				{
+					sType = VkStructureType.PipelineShaderStageCreateInfo,
+					stage = VkShaderStageFlags.Fragment,
+					module = shaderModule,
+					pName = new VkString(entryPoints[ShaderStage.Fragment])
+				};
+				Stages.Add(createInfo);
+			}
 		}
 
 		private static unsafe VkShaderModule CreateShaderModule(VkDevice device, byte[] data)
@@ -52,8 +58,7 @@ namespace Proxima.Graphics
 
 		public override unsafe void Dispose()
 		{
-			Vulkan.vkDestroyShaderModule(graphicsDevice.LogicalDevice, vertexModule, null);
-			Vulkan.vkDestroyShaderModule(graphicsDevice.LogicalDevice, fragmentModule, null);
+			Vulkan.vkDestroyShaderModule(graphicsDevice.LogicalDevice, shaderModule, null);
 		}
 	}
 }

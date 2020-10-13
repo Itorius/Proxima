@@ -40,7 +40,8 @@ namespace Proxima
 			#endif
 
 			GraphicsDevice.Initialize();
-
+			
+			AssetManager.Initialize(GraphicsDevice);
 			Renderer2D.Initialize(GraphicsDevice);
 
 			OnLoad();
@@ -48,7 +49,8 @@ namespace Proxima
 
 		private void Cleanup()
 		{
-			Renderer2D.Cleanup();
+			Renderer2D.Dispose();
+			AssetManager.Dispose();
 			GraphicsDevice.Dispose();
 
 			Glfw.DestroyWindow(window);

@@ -1,5 +1,11 @@
+using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
 using System.Numerics;
+using System.Runtime.InteropServices;
+using System.Text;
+using MonoMod.Utils;
 using Proxima.Graphics;
 using Vortice.Mathematics;
 using Vortice.Vulkan;
@@ -55,22 +61,71 @@ namespace Proxima
 
 		public const int MaxQuads = 1000;
 
-		internal static void Initialize(GraphicsDevice graphicsDevice)
-		{
-			gd = graphicsDevice;
-			gd.OnInvalidate += () => GraphicsPipeline.Invalidate();
+		private delegate void callback(IntPtr data, IntPtr error);
 
-			GraphicsPipeline = new GraphicsPipeline(gd, typeof(UniformBufferObject));
+		internal static unsafe void Initialize(GraphicsDevice graphicsDevice)
+		{
+			// IntPtr context = IntPtr.Zero;
+			// SPIRV.CreateContext(out IntPtr context);
+			//
+			// callback c = (data, error) => { Log.Debug(Marshal.PtrToStringAuto(error)); };
+			// SPIRV.SetDebugCallback(context, Marshal.GetFunctionPointerForDelegate(c), IntPtr.Zero);
+			//
+			// byte[] data = File.ReadAllBytes("Assets/test.spv");
+			//
+			// IntPtr ir = IntPtr.Zero;
+			// fixed (byte* ptr = data) SPIRV.ParseSPIRV(context, new IntPtr(ptr), (uint)(data.Length / 4), out ir);
+			//
+			// SPIRV.CreateCompiler(context, SpirvBackend.GLSL, ir, SpirvCaptureMode.TakeOwnership, out IntPtr compiler);
+			//
+			// SPIRV.CreateShaderResources(compiler, out IntPtr resources);
+			//
+			// var list = SPIRV.GetResourceListForType(resources, SpirvResourceType.UniformBuffer);
+			//
+			// foreach (SpirvReflectedResource resource in list)
+			// {
+			// 	Log.Debug(resource.Name);
+			//
+			// 	Log.Debug(string.Format(" Set: {0}, Binding: {1}",
+			// 		SPIRV.GetDecoration(compiler, resource.ID, SpirvDecoration.DescriptorSet),
+			// 		SPIRV.GetDecoration(compiler, resource.ID, SpirvDecoration.Binding)
+			// 	));
+			// }
+			//
+			// list = SPIRV.GetResourceListForType(resources, SpirvResourceType.SampledImage);
+			//
+			// foreach (SpirvReflectedResource resource in list)
+			// {
+			// 	Log.Debug(resource.Name);
+			//
+			// 	Log.Debug(string.Format(" Set: {0}, Binding: {1}",
+			// 		SPIRV.GetDecoration(compiler, resource.ID, SpirvDecoration.DescriptorSet),
+			// 		SPIRV.GetDecoration(compiler, resource.ID, SpirvDecoration.Binding)
+			// 	));
+			// }
+			//
+			// SPIRV.DestroyContext(context);
+
+			gd = graphicsDevice;
+			gd.OnInvalidate += () => GraphicsPipelines.ForEach(pair => pair.Value.Invalidate());
+
+			ActiveShader = AssetManager.LoadShader("Assets/test");
+
+			GraphicsPipelines = new Dictionary<Shader, GraphicsPipeline>();
+
+			GraphicsPipelines.Add(ActiveShader, new GraphicsPipeline(gd, typeof(UniformBufferObject), ActiveShader));
 
 			VertexBuffer = new VertexBuffer<Vertex>(gd, MaxQuads * 4);
 			IndexBuffer = new IndexBuffer<uint>(gd, MaxQuads * 6);
 		}
 
-		internal static void Cleanup()
+		private static Shader ActiveShader;
+
+		internal static void Dispose()
 		{
 			Vulkan.vkDeviceWaitIdle(gd.LogicalDevice);
 
-			GraphicsPipeline.Dispose();
+			GraphicsPipelines.ForEach(pair => pair.Value.Dispose());
 
 			VertexBuffer.Dispose();
 			IndexBuffer.Dispose();
@@ -82,7 +137,9 @@ namespace Proxima
 		}
 
 		private static VkCommandBuffer buffer;
-		private static GraphicsPipeline GraphicsPipeline;
+		// private static GraphicsPipeline GraphicsPipeline;
+
+		private static Dictionary<Shader, GraphicsPipeline> GraphicsPipelines;
 
 		private static List<Vertex> vertices = new List<Vertex>();
 		private static List<uint> indices = new List<uint>();
@@ -99,9 +156,9 @@ namespace Proxima
 			// ubo.Projection = Matrix4x4.CreatePerspectiveFieldOfView(MathHelper.ToRadians(45f), SwapchainExtent.Width / (float)SwapchainExtent.Height, 0.1f, 100f);
 			// ubo.Projection.M22 *= -1;
 
-			GraphicsPipeline.UniformBuffers[gd.CurrentFrameIndex].SetData(ubo);
+			GraphicsPipelines[ActiveShader].UniformBuffers[gd.CurrentFrameIndex].SetData(ubo);
 
-			buffer = gd.Begin(color, gd.CurrentFrameIndex, GraphicsPipeline);
+			buffer = gd.Begin(color, gd.CurrentFrameIndex, GraphicsPipelines[ActiveShader]);
 		}
 
 		public static void Begin(Matrix4x4 camera, Color color)
@@ -114,9 +171,9 @@ namespace Proxima
 			// ubo.Projection = Matrix4x4.CreatePerspectiveFieldOfView(MathHelper.ToRadians(45f), SwapchainExtent.Width / (float)SwapchainExtent.Height, 0.1f, 100f);
 			// ubo.Projection.M22 *= -1;
 
-			GraphicsPipeline.UniformBuffers[gd.CurrentFrameIndex].SetData(ubo);
+			GraphicsPipelines[ActiveShader].UniformBuffers[gd.CurrentFrameIndex].SetData(ubo);
 
-			buffer = gd.Begin(new Color4(color), gd.CurrentFrameIndex, GraphicsPipeline);
+			buffer = gd.Begin(new Color4(color), gd.CurrentFrameIndex, GraphicsPipelines[ActiveShader]);
 		}
 
 		public static void End()
@@ -130,7 +187,7 @@ namespace Proxima
 			Vulkan.vkCmdBindVertexBuffers(buffer, 0, VertexBuffer.Buffer);
 			Vulkan.vkCmdBindIndexBuffer(buffer, IndexBuffer.Buffer, 0, IndexBuffer.IndexType);
 
-			Vulkan.vkCmdBindDescriptorSets(buffer, VkPipelineBindPoint.Graphics, GraphicsPipeline.PipelineLayout, 0, GraphicsPipeline.DescriptorSets[gd.CurrentFrameIndex]);
+			Vulkan.vkCmdBindDescriptorSets(buffer, VkPipelineBindPoint.Graphics, GraphicsPipelines[ActiveShader].PipelineLayout, 0, GraphicsPipelines[ActiveShader].DescriptorSets[gd.CurrentFrameIndex]);
 
 			Vulkan.vkCmdDrawIndexed(buffer, IndexBuffer.Length, 1, 0, 0, 0);
 

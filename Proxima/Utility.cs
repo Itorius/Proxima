@@ -46,6 +46,11 @@ namespace Proxima
 
 	public static class Utility
 	{
+		public static void ForEach<T>(this IEnumerable<T> collection, Action<T> predicate)
+		{
+			foreach (T VARIABLE in collection) predicate(VARIABLE);
+		}
+		
 		public static IEnumerable<int> IndicesOf<T>(this IEnumerable<T> collection, Func<T, bool> predicate)
 		{
 			int i = 0;

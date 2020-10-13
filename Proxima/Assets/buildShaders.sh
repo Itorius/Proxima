@@ -1,4 +1,1 @@
-for i in *.vert *.frag
-do
-    glslc "$i" -o "$i.spv"
-done
+/usr/bin/python3.8 compile.py

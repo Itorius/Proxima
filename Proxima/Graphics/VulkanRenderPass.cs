@@ -4,8 +4,10 @@ namespace Proxima.Graphics
 {
 	public class VulkanRenderPass : GraphicsObject
 	{
-		public VkRenderPass RenderPass { get; private set; }
+		private VkRenderPass renderPass;
 
+		public static explicit operator VkRenderPass(VulkanRenderPass renderPass) => renderPass.renderPass;
+		
 		public unsafe VulkanRenderPass(GraphicsDevice graphicsDevice, VkFormat surfaceFormatFormat) : base(graphicsDevice)
 		{
 			VkAttachmentDescription colorAttachment = new VkAttachmentDescription
@@ -76,7 +78,7 @@ namespace Proxima.Graphics
 			fixed (VkAttachmentDescription* ptr = attachments) renderPassCreateInfo.pAttachments = ptr;
 
 			Vulkan.vkCreateRenderPass(graphicsDevice.LogicalDevice, &renderPassCreateInfo, null, out var renderPass).CheckResult();
-			RenderPass = renderPass;
+			this.renderPass = renderPass;
 		}
 
 		public unsafe void Invalidate()
@@ -151,12 +153,12 @@ namespace Proxima.Graphics
 			fixed (VkAttachmentDescription* ptr = attachments) renderPassCreateInfo.pAttachments = ptr;
 
 			Vulkan.vkCreateRenderPass(graphicsDevice.LogicalDevice, &renderPassCreateInfo, null, out var renderPass).CheckResult();
-			RenderPass = renderPass;
+			this.renderPass = renderPass;
 		}
 
 		public override unsafe void Dispose()
 		{
-			Vulkan.vkDestroyRenderPass(graphicsDevice.LogicalDevice, RenderPass, null);
+			Vulkan.vkDestroyRenderPass(graphicsDevice.LogicalDevice, renderPass, null);
 		}
 	}
 }

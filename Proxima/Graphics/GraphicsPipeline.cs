@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Reflection;
 using Vortice.Vulkan;
 
 namespace Proxima.Graphics
@@ -15,8 +16,13 @@ namespace Proxima.Graphics
 		internal VkDescriptorSet[] DescriptorSets;
 		private Type uniformBufferType;
 
-		public GraphicsPipeline(GraphicsDevice graphicsDevice, Type uniformBufferType) : base(graphicsDevice)
+		// todo: abstract this out
+		private Shader shader;
+		// note: one shader per pipeline
+
+		public GraphicsPipeline(GraphicsDevice graphicsDevice, Type uniformBufferType, Shader shader) : base(graphicsDevice)
 		{
+			this.shader = shader;
 			this.uniformBufferType = uniformBufferType;
 			Create();
 		}
@@ -153,9 +159,6 @@ namespace Proxima.Graphics
 		private unsafe void CreateGraphicsPipeline()
 		{
 			// todo: abstract this out
-			Shader shader = new Shader(graphicsDevice, "Assets/test.vert.spv", "Assets/test.frag.spv");
-
-			// todo: abstract this out
 			var bindingDescription = Renderer2D.Vertex.GetBindingDescription();
 			var attributeDescriptions = Renderer2D.Vertex.GetAttributeDescriptions();
 
@@ -220,8 +223,8 @@ namespace Proxima.Graphics
 				srcColorBlendFactor = VkBlendFactor.SrcAlpha,
 				dstColorBlendFactor = VkBlendFactor.OneMinusSrcAlpha,
 				colorBlendOp = VkBlendOp.Add,
-				srcAlphaBlendFactor = VkBlendFactor.One,
-				dstAlphaBlendFactor = VkBlendFactor.Zero,
+				srcAlphaBlendFactor = VkBlendFactor.SrcAlpha,
+				dstAlphaBlendFactor = VkBlendFactor.OneMinusSrcAlpha,
 				alphaBlendOp = VkBlendOp.Add
 			};
 
@@ -278,19 +281,20 @@ namespace Proxima.Graphics
 				pColorBlendState = &colorBlending,
 				pDynamicState = null,
 				layout = PipelineLayout,
-				renderPass = graphicsDevice.RenderPass.RenderPass,
+				renderPass = (VkRenderPass)graphicsDevice.RenderPass,
 				subpass = 0,
 				basePipelineHandle = VkPipeline.Null,
 				basePipelineIndex = -1,
-				stageCount = (uint)shader.Stages.Length
+				stageCount = (uint)shader.Stages.Count
 			};
 
-			fixed (VkPipelineShaderStageCreateInfo* ptr = shader.Stages) pipelineCreateInfo.pStages = ptr;
+			FieldInfo fieldInfo = shader.Stages.GetType().GetField("_items", BindingFlags.NonPublic | BindingFlags.Instance);
+			VkPipelineShaderStageCreateInfo[] p = (VkPipelineShaderStageCreateInfo[])fieldInfo.GetValue(shader.Stages);
+
+			fixed (VkPipelineShaderStageCreateInfo* ptr = p) pipelineCreateInfo.pStages = ptr;
 
 			Vulkan.vkCreateGraphicsPipeline(graphicsDevice.LogicalDevice, VkPipelineCache.Null, pipelineCreateInfo, out var pipeline).CheckResult();
 			Pipeline = pipeline;
-
-			shader.Dispose();
 		}
 
 		public void Invalidate()
