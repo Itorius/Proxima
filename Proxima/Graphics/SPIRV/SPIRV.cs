@@ -60,6 +60,8 @@ namespace Proxima
 		[DllImport(LibraryName, EntryPoint = "spvc_context_release_allocations")]
 		public static extern void ReleaseAllocations(IntPtr context);
 
+		public delegate void SPIRVCallback(IntPtr data, IntPtr error);
+		
 		internal static (ShaderStage, Dictionary<ShaderStage, string>) GetStages(string path)
 		{
 			const int OpEntryPoint = 15;

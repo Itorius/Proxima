@@ -14,10 +14,7 @@ namespace Proxima.Graphics
 
 		public unsafe IndexBuffer(GraphicsDevice graphicsDevice, T[] data) : base(graphicsDevice)
 		{
-			if (typeof(T) == typeof(byte)) IndexType = VkIndexType.Uint8EXT;
-			else if (typeof(T) == typeof(ushort)) IndexType = VkIndexType.Uint16;
-			else if (typeof(T) == typeof(uint)) IndexType = VkIndexType.Uint32;
-			else throw new Exception("Unsupported index buffer type " + typeof(T).Name);
+			IndexType = GetIndexType();
 
 			Length = (uint)data.Length;
 
@@ -44,14 +41,19 @@ namespace Proxima.Graphics
 			BufferSize = (ulong)(elementCount * sizeof(T));
 			Length = elementCount;
 
-			if (typeof(T) == typeof(byte)) IndexType = VkIndexType.Uint8EXT;
-			else if (typeof(T) == typeof(ushort)) IndexType = VkIndexType.Uint16;
-			else if (typeof(T) == typeof(uint)) IndexType = VkIndexType.Uint32;
-			else throw new Exception("Unsupported index buffer type " + typeof(T).Name);
+			IndexType = GetIndexType();
 
 			var (vkBuffer, vkDeviceMemory) = VulkanUtils.CreateBuffer(graphicsDevice, BufferSize, VkBufferUsageFlags.TransferDst | VkBufferUsageFlags.IndexBuffer, VkMemoryPropertyFlags.DeviceLocal);
 			Buffer = vkBuffer;
 			Memory = vkDeviceMemory;
+		}
+
+		private static VkIndexType GetIndexType()
+		{
+			if (typeof(T) == typeof(byte)) return VkIndexType.Uint8EXT;
+			if (typeof(T) == typeof(ushort)) return VkIndexType.Uint16;
+			if (typeof(T) == typeof(uint)) return VkIndexType.Uint32;
+			throw new Exception("Unsupported index buffer type " + typeof(T).Name);
 		}
 
 		public unsafe void SetData(T[] data)
@@ -88,6 +90,11 @@ namespace Proxima.Graphics
 		{
 			Vulkan.vkDestroyBuffer(graphicsDevice.LogicalDevice, Buffer, null);
 			Vulkan.vkFreeMemory(graphicsDevice.LogicalDevice, Memory, null);
+		}
+
+		public void Bind(VkCommandBuffer buffer)
+		{
+			Vulkan.vkCmdBindIndexBuffer(buffer, Buffer, 0, IndexType);
 		}
 	}
 }

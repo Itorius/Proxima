@@ -32,7 +32,7 @@ namespace Sandbox
 
 		public override void OnRender()
 		{
-			Color4 color = new HslColor(MathF.Sin(Time.TotalUpdateTime) * 0.5f + 0.5f, 1f, 0.5f, 0.2f).ToRGB();
+			Color4 color = new HslColor(MathF.Sin(Time.TotalUpdateTime) * 0.5f + 0.5f, 1f, 0.5f, 1f).ToRGB();
 
 			Matrix4x4 projection = Matrix4x4.CreateOrthographic(window.ClientWidth, window.ClientHeight, -1f, 1f);
 			Matrix4x4 view = Matrix4x4.CreateTranslation(MathF.Sin(Time.TotalUpdateTime) * 100f, 0f, 0f);

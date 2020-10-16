@@ -71,5 +71,10 @@ namespace Proxima.Graphics
 			Vulkan.vkDestroyBuffer(graphicsDevice.LogicalDevice, Buffer, null);
 			Vulkan.vkFreeMemory(graphicsDevice.LogicalDevice, Memory, null);
 		}
+
+		public void Bind(VkCommandBuffer buffer)
+		{
+			Vulkan.vkCmdBindVertexBuffers(buffer, 0, Buffer);
+		}
 	}
 }

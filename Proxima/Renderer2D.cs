@@ -1,18 +1,13 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
 using System.Numerics;
-using System.Runtime.InteropServices;
-using System.Text;
-using MonoMod.Utils;
 using Proxima.Graphics;
 using Vortice.Mathematics;
 using Vortice.Vulkan;
 
 namespace Proxima
 {
-	public static class Renderer2D
+	public static partial class Renderer2D
 	{
 		public struct Vertex
 		{
@@ -57,87 +52,14 @@ namespace Proxima
 			}
 		}
 
-		private static GraphicsDevice gd;
-
-		public const int MaxQuads = 1000;
-
-		private delegate void callback(IntPtr data, IntPtr error);
-
-		internal static unsafe void Initialize(GraphicsDevice graphicsDevice)
-		{
-			// IntPtr context = IntPtr.Zero;
-			// SPIRV.CreateContext(out IntPtr context);
-			//
-			// callback c = (data, error) => { Log.Debug(Marshal.PtrToStringAuto(error)); };
-			// SPIRV.SetDebugCallback(context, Marshal.GetFunctionPointerForDelegate(c), IntPtr.Zero);
-			//
-			// byte[] data = File.ReadAllBytes("Assets/test.spv");
-			//
-			// IntPtr ir = IntPtr.Zero;
-			// fixed (byte* ptr = data) SPIRV.ParseSPIRV(context, new IntPtr(ptr), (uint)(data.Length / 4), out ir);
-			//
-			// SPIRV.CreateCompiler(context, SpirvBackend.GLSL, ir, SpirvCaptureMode.TakeOwnership, out IntPtr compiler);
-			//
-			// SPIRV.CreateShaderResources(compiler, out IntPtr resources);
-			//
-			// var list = SPIRV.GetResourceListForType(resources, SpirvResourceType.UniformBuffer);
-			//
-			// foreach (SpirvReflectedResource resource in list)
-			// {
-			// 	Log.Debug(resource.Name);
-			//
-			// 	Log.Debug(string.Format(" Set: {0}, Binding: {1}",
-			// 		SPIRV.GetDecoration(compiler, resource.ID, SpirvDecoration.DescriptorSet),
-			// 		SPIRV.GetDecoration(compiler, resource.ID, SpirvDecoration.Binding)
-			// 	));
-			// }
-			//
-			// list = SPIRV.GetResourceListForType(resources, SpirvResourceType.SampledImage);
-			//
-			// foreach (SpirvReflectedResource resource in list)
-			// {
-			// 	Log.Debug(resource.Name);
-			//
-			// 	Log.Debug(string.Format(" Set: {0}, Binding: {1}",
-			// 		SPIRV.GetDecoration(compiler, resource.ID, SpirvDecoration.DescriptorSet),
-			// 		SPIRV.GetDecoration(compiler, resource.ID, SpirvDecoration.Binding)
-			// 	));
-			// }
-			//
-			// SPIRV.DestroyContext(context);
-
-			gd = graphicsDevice;
-			gd.OnInvalidate += () => GraphicsPipelines.ForEach(pair => pair.Value.Invalidate());
-
-			ActiveShader = AssetManager.LoadShader("Assets/test");
-
-			GraphicsPipelines = new Dictionary<Shader, GraphicsPipeline>();
-
-			GraphicsPipelines.Add(ActiveShader, new GraphicsPipeline(gd, typeof(UniformBufferObject), ActiveShader));
-
-			VertexBuffer = new VertexBuffer<Vertex>(gd, MaxQuads * 4);
-			IndexBuffer = new IndexBuffer<uint>(gd, MaxQuads * 6);
-		}
-
-		private static Shader ActiveShader;
-
-		internal static void Dispose()
-		{
-			Vulkan.vkDeviceWaitIdle(gd.LogicalDevice);
-
-			GraphicsPipelines.ForEach(pair => pair.Value.Dispose());
-
-			VertexBuffer.Dispose();
-			IndexBuffer.Dispose();
-		}
-
 		public struct UniformBufferObject
 		{
 			public Matrix4x4 Camera;
 		}
 
+		private static GraphicsDevice gd;
+
 		private static VkCommandBuffer buffer;
-		// private static GraphicsPipeline GraphicsPipeline;
 
 		private static Dictionary<Shader, GraphicsPipeline> GraphicsPipelines;
 
@@ -145,9 +67,38 @@ namespace Proxima
 		private static List<uint> indices = new List<uint>();
 		private static VertexBuffer<Vertex> VertexBuffer;
 		private static IndexBuffer<uint> IndexBuffer;
+		private static Shader defaultShader;
 
-		public static void Begin(Matrix4x4 camera, Color4 color)
+		public const int MaxQuads = 1000;
+
+		internal static void Initialize(GraphicsDevice graphicsDevice)
 		{
+			gd = graphicsDevice;
+			gd.OnInvalidate += () => GraphicsPipelines.ForEach(pair => pair.Value.Invalidate());
+
+			defaultShader = AssetManager.LoadShader("Assets/test");
+
+			GraphicsPipelines = new Dictionary<Shader, GraphicsPipeline>
+			{
+				{
+					defaultShader, new GraphicsPipeline(gd, new GraphicsPipeline.Options
+					{
+						UniformBufferType = typeof(UniformBufferObject),
+						Shader = defaultShader
+					})
+				}
+			};
+
+			VertexBuffer = new VertexBuffer<Vertex>(gd, MaxQuads * 4);
+			IndexBuffer = new IndexBuffer<uint>(gd, MaxQuads * 6);
+		}
+
+		private static Shader ActiveShader;
+
+		public static void Begin(Matrix4x4 camera, Color4 color, Shader? shader = null)
+		{
+			ChangeShader(shader);
+
 			UniformBufferObject ubo = new UniformBufferObject
 			{
 				Camera = camera
@@ -161,8 +112,28 @@ namespace Proxima
 			buffer = gd.Begin(color, gd.CurrentFrameIndex, GraphicsPipelines[ActiveShader]);
 		}
 
-		public static void Begin(Matrix4x4 camera, Color color)
+		private static void ChangeShader(Shader? shader)
 		{
+			if (shader != null)
+			{
+				if(!GraphicsPipelines.ContainsKey(shader))
+				{
+					GraphicsPipelines.Add(shader, new GraphicsPipeline(gd, new GraphicsPipeline.Options
+					{
+						UniformBufferType = typeof(UniformBufferObject),
+						Shader = shader
+					}));
+				}
+
+				ActiveShader = shader;
+			}
+			else ActiveShader = defaultShader;	
+		}
+
+		public static void Begin(Matrix4x4 camera, Color color, Shader? shader = null)
+		{
+			ChangeShader(shader);
+
 			UniformBufferObject ubo = new UniformBufferObject
 			{
 				Camera = camera
@@ -184,10 +155,10 @@ namespace Proxima
 			indices.Clear();
 			nextQuadID = 0;
 
-			Vulkan.vkCmdBindVertexBuffers(buffer, 0, VertexBuffer.Buffer);
-			Vulkan.vkCmdBindIndexBuffer(buffer, IndexBuffer.Buffer, 0, IndexBuffer.IndexType);
+			VertexBuffer.Bind(buffer);
+			IndexBuffer.Bind(buffer);
 
-			Vulkan.vkCmdBindDescriptorSets(buffer, VkPipelineBindPoint.Graphics, GraphicsPipelines[ActiveShader].PipelineLayout, 0, GraphicsPipelines[ActiveShader].DescriptorSets[gd.CurrentFrameIndex]);
+			GraphicsPipelines[ActiveShader].Bind(buffer);
 
 			Vulkan.vkCmdDrawIndexed(buffer, IndexBuffer.Length, 1, 0, 0, 0);
 
@@ -196,45 +167,14 @@ namespace Proxima
 
 		private static uint nextQuadID;
 
-		public static void DrawQuad(Vector2 position, Vector2 size, Color4 color)
+		internal static void Dispose()
 		{
-			var (r, g, b, a) = color;
+			Vulkan.vkDeviceWaitIdle(gd.LogicalDevice);
 
-			vertices.Add(new Vertex { Position = new Vector3(position.X - size.X * 0.5f, position.Y - size.Y * 0.5f, 0f), Color = new Color4(r, g, b, a), UV = new Vector2(0f, 0f) });
-			vertices.Add(new Vertex { Position = new Vector3(position.X + size.X * 0.5f, position.Y - size.Y * 0.5f, 0f), Color = new Color4(r, g, b, a), UV = new Vector2(1f, 0f) });
-			vertices.Add(new Vertex { Position = new Vector3(position.X + size.X * 0.5f, position.Y + size.Y * 0.5f, 0f), Color = new Color4(r, g, b, a), UV = new Vector2(1f, 1f) });
-			vertices.Add(new Vertex { Position = new Vector3(position.X - size.X * 0.5f, position.Y + size.Y * 0.5f, 0f), Color = new Color4(r, g, b, a), UV = new Vector2(0f, 1f) });
+			GraphicsPipelines.ForEach(pair => pair.Value.Dispose());
 
-			indices.Add(nextQuadID * 4 + 0);
-			indices.Add(nextQuadID * 4 + 1);
-			indices.Add(nextQuadID * 4 + 2);
-			indices.Add(nextQuadID * 4 + 2);
-			indices.Add(nextQuadID * 4 + 3);
-			indices.Add(nextQuadID * 4 + 0);
-
-			nextQuadID++;
-		}
-
-		public static void DrawQuad(Vector2 position, Vector2 size, Color color)
-		{
-			float r = color.R / 255f;
-			float g = color.G / 255f;
-			float b = color.B / 255f;
-			float a = color.A / 255f;
-
-			vertices.Add(new Vertex { Position = new Vector3(position.X - size.X * 0.5f, position.Y - size.Y * 0.5f, 0f), Color = new Color4(r, g, b, a), UV = new Vector2(0f, 0f) });
-			vertices.Add(new Vertex { Position = new Vector3(position.X + size.X * 0.5f, position.Y - size.Y * 0.5f, 0f), Color = new Color4(r, g, b, a), UV = new Vector2(1f, 0f) });
-			vertices.Add(new Vertex { Position = new Vector3(position.X + size.X * 0.5f, position.Y + size.Y * 0.5f, 0f), Color = new Color4(r, g, b, a), UV = new Vector2(1f, 1f) });
-			vertices.Add(new Vertex { Position = new Vector3(position.X - size.X * 0.5f, position.Y + size.Y * 0.5f, 0f), Color = new Color4(r, g, b, a), UV = new Vector2(0f, 1f) });
-
-			indices.Add(nextQuadID * 4 + 0);
-			indices.Add(nextQuadID * 4 + 1);
-			indices.Add(nextQuadID * 4 + 2);
-			indices.Add(nextQuadID * 4 + 2);
-			indices.Add(nextQuadID * 4 + 3);
-			indices.Add(nextQuadID * 4 + 0);
-
-			nextQuadID++;
+			VertexBuffer.Dispose();
+			IndexBuffer.Dispose();
 		}
 	}
 }

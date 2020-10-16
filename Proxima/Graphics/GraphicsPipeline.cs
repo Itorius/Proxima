@@ -7,23 +7,26 @@ namespace Proxima.Graphics
 {
 	public class GraphicsPipeline : GraphicsObject
 	{
+		public struct Options
+		{
+			public Type UniformBufferType;
+			public Shader Shader;
+		}
+
 		public VkPipelineLayout PipelineLayout { get; private set; }
 		public VkPipeline Pipeline { get; private set; }
 		private VkDescriptorSetLayout DescriptorSetLayout;
 		public UniformBuffer[] UniformBuffers { get; private set; }
 
 		private VkDescriptorPool DescriptorPool;
-		internal VkDescriptorSet[] DescriptorSets;
+		private VkDescriptorSet[] DescriptorSets;
 		private Type uniformBufferType;
-
-		// todo: abstract this out
 		private Shader shader;
-		// note: one shader per pipeline
 
-		public GraphicsPipeline(GraphicsDevice graphicsDevice, Type uniformBufferType, Shader shader) : base(graphicsDevice)
+		public GraphicsPipeline(GraphicsDevice graphicsDevice, Options options) : base(graphicsDevice)
 		{
-			this.shader = shader;
-			this.uniformBufferType = uniformBufferType;
+			shader = options.Shader;
+			uniformBufferType = options.UniformBufferType;
 			Create();
 		}
 
@@ -33,32 +36,27 @@ namespace Proxima.Graphics
 			for (int i = 0; i < UniformBuffers.Length; i++) UniformBuffers[i] = ((UniformBuffer)Activator.CreateInstance(typeof(UniformBuffer<>).MakeGenericType(uniformBufferType), graphicsDevice))!;
 
 			CreateDescriptorSetLayout();
-
-			CreateGraphicsPipeline();
-
 			CreateDescriptorPool();
 			CreateDescriptorSets();
+
+			CreateGraphicsPipeline();
 		}
 
 		private unsafe void CreateDescriptorSetLayout()
 		{
-			VkDescriptorSetLayoutBinding uboLayoutBinding = new VkDescriptorSetLayoutBinding
-			{
-				binding = 0,
-				descriptorType = VkDescriptorType.UniformBuffer,
-				descriptorCount = 1,
-				stageFlags = VkShaderStageFlags.Vertex
-			};
+			VkDescriptorSetLayoutBinding[] bindings = new VkDescriptorSetLayoutBinding[shader.DescriptorTypes.Count];
 
-			VkDescriptorSetLayoutBinding samplerLayoutBinding = new VkDescriptorSetLayoutBinding
+			int i = 0;
+			foreach (var (type, set, binding) in shader.DescriptorTypes)
 			{
-				binding = 1,
-				descriptorType = VkDescriptorType.CombinedImageSampler,
-				descriptorCount = 1,
-				stageFlags = VkShaderStageFlags.Fragment
-			};
-
-			VkDescriptorSetLayoutBinding[] bindings = { uboLayoutBinding, samplerLayoutBinding };
+				bindings[i++] = new VkDescriptorSetLayoutBinding
+				{
+					binding = binding,
+					descriptorType = type,
+					descriptorCount = 1,
+					stageFlags = type == VkDescriptorType.CombinedImageSampler ? VkShaderStageFlags.Fragment : VkShaderStageFlags.Vertex
+				};
+			}
 
 			VkDescriptorSetLayoutCreateInfo layoutCreateInfo = new VkDescriptorSetLayoutCreateInfo
 			{
@@ -72,19 +70,15 @@ namespace Proxima.Graphics
 
 		private unsafe void CreateDescriptorPool()
 		{
-			VkDescriptorPoolSize[] poolSizes =
+			VkDescriptorPoolSize[] poolSizes = new VkDescriptorPoolSize[shader.DescriptorTypes.Count];
+			for (int i = 0; i < poolSizes.Length; i++)
 			{
-				new VkDescriptorPoolSize
+				poolSizes[i] = new VkDescriptorPoolSize
 				{
-					type = VkDescriptorType.UniformBuffer,
+					type = shader.DescriptorTypes[i].type,
 					descriptorCount = (uint)UniformBuffers.Length
-				},
-				new VkDescriptorPoolSize
-				{
-					type = VkDescriptorType.CombinedImageSampler,
-					descriptorCount = (uint)UniformBuffers.Length
-				}
-			};
+				};
+			}
 
 			VkDescriptorPoolCreateInfo poolCreateInfo = new VkDescriptorPoolCreateInfo
 			{
@@ -121,6 +115,7 @@ namespace Proxima.Graphics
 					range = UniformBuffers[i].Size
 				};
 
+				// todo: abstract this out
 				VkDescriptorImageInfo imageInfo = new VkDescriptorImageInfo
 				{
 					imageLayout = VkImageLayout.ShaderReadOnlyOptimal,
@@ -312,6 +307,11 @@ namespace Proxima.Graphics
 			Vulkan.vkDestroyPipelineLayout(graphicsDevice.LogicalDevice, PipelineLayout, null);
 
 			foreach (var buffer in UniformBuffers) buffer.Dispose();
+		}
+
+		public void Bind(VkCommandBuffer buffer)
+		{
+			Vulkan.vkCmdBindDescriptorSets(buffer, VkPipelineBindPoint.Graphics, PipelineLayout, 0, DescriptorSets[graphicsDevice.CurrentFrameIndex]);
 		}
 	}
 }
