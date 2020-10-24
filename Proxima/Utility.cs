@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using Vortice.Mathematics;
 
 namespace Proxima
@@ -46,11 +47,17 @@ namespace Proxima
 
 	public static class Utility
 	{
+		public static T[] GetInternalArray<T>(this List<T> list)
+		{
+			FieldInfo fieldInfo = list.GetType().GetField("_items", BindingFlags.NonPublic | BindingFlags.Instance);
+			return (T[])fieldInfo.GetValue(list);
+		}
+
 		public static void ForEach<T>(this IEnumerable<T> collection, Action<T> predicate)
 		{
 			foreach (T VARIABLE in collection) predicate(VARIABLE);
 		}
-		
+
 		public static IEnumerable<int> IndicesOf<T>(this IEnumerable<T> collection, Func<T, bool> predicate)
 		{
 			int i = 0;

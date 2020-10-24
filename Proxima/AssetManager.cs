@@ -25,7 +25,7 @@ namespace Proxima
 		{
 			if (shaderCache.TryGetValue(path, out Shader shader)) return shader;
 
-			shader = new Shader(gd, path + ".spv");
+			shader = new Shader(gd, path);
 			shaderCache.Add(path, shader);
 			return shader;
 		}

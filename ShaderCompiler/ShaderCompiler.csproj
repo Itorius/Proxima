@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>netcoreapp5.0</TargetFramework>
+		<OutputType>Exe</OutputType>
+	</PropertyGroup>
+
+	<ItemGroup>
+	  <Compile Remove="publish\**" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <EmbeddedResource Remove="publish\**" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <None Remove="publish\**" />
+	</ItemGroup>
+
+<!--	<Target Name="PostBuildScript" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">-->
+<!--		<Exec Command="dotnet publish -o $(ProjectDir)publish/ -c Release -r linux-x64 -p:PublishSingleFile=true &#45;&#45;self-contained false"/>-->
+<!--	</Target>-->
+
+</Project>

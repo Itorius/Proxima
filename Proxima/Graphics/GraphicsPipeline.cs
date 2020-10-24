@@ -1,6 +1,6 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using Vortice.Vulkan;
 
 namespace Proxima.Graphics
@@ -11,6 +11,7 @@ namespace Proxima.Graphics
 		{
 			public Type UniformBufferType;
 			public Shader Shader;
+			public Texture2D Texture;
 		}
 
 		public VkPipelineLayout PipelineLayout { get; private set; }
@@ -22,21 +23,38 @@ namespace Proxima.Graphics
 		private VkDescriptorSet[] DescriptorSets;
 		private Type uniformBufferType;
 		private Shader shader;
+		private Texture2D texture;
 
-		public GraphicsPipeline(GraphicsDevice graphicsDevice, Options options) : base(graphicsDevice)
+		public GraphicsPipeline(GraphicsDevice graphicsDevice, Options options, Action<GraphicsPipeline> initialization) : base(graphicsDevice)
 		{
+			texture = options.Texture;
 			shader = options.Shader;
 			uniformBufferType = options.UniformBufferType;
+
+			initialization.Invoke(this);
+
 			Create();
+		}
+
+		private List<VertexBuffer> vertexBuffers = new List<VertexBuffer>();
+		private List<Type> uniformBufferTypes = new List<Type>();
+
+		public void AddVertexBuffer<T>(VertexBuffer<T> buffer) where T : unmanaged
+		{
+			vertexBuffers.Add(buffer);
+		}
+
+		public void AddUniformBuffer<T>() where T : unmanaged
+		{
+			uniformBufferTypes.Add(typeof(T));
 		}
 
 		public void Create()
 		{
 			UniformBuffers = new UniformBuffer[graphicsDevice.Swapchain.Length];
-			for (int i = 0; i < UniformBuffers.Length; i++) UniformBuffers[i] = ((UniformBuffer)Activator.CreateInstance(typeof(UniformBuffer<>).MakeGenericType(uniformBufferType), graphicsDevice))!;
+			for (int i = 0; i < UniformBuffers.Length; i++) UniformBuffers[i] = (UniformBuffer)Activator.CreateInstance(typeof(UniformBuffer<>).MakeGenericType(uniformBufferTypes[0]), graphicsDevice);
 
 			CreateDescriptorSetLayout();
-			CreateDescriptorPool();
 			CreateDescriptorSets();
 
 			CreateGraphicsPipeline();
@@ -44,49 +62,59 @@ namespace Proxima.Graphics
 
 		private unsafe void CreateDescriptorSetLayout()
 		{
-			VkDescriptorSetLayoutBinding[] bindings = new VkDescriptorSetLayoutBinding[shader.DescriptorTypes.Count];
+			List<VkDescriptorSetLayoutBinding> bindings = new List<VkDescriptorSetLayoutBinding>();
 
-			int i = 0;
-			foreach (var (type, set, binding) in shader.DescriptorTypes)
+			foreach (var (stage, data) in shader.ReflectionData)
 			{
-				bindings[i++] = new VkDescriptorSetLayoutBinding
+				foreach (ReflectionData.Ubo ubo in data.UBOs)
 				{
-					binding = binding,
-					descriptorType = type,
-					descriptorCount = 1,
-					stageFlags = type == VkDescriptorType.CombinedImageSampler ? VkShaderStageFlags.Fragment : VkShaderStageFlags.Vertex
-				};
+					bindings.Add(new VkDescriptorSetLayoutBinding
+					{
+						binding = ubo.Binding,
+						descriptorType = VkDescriptorType.UniformBuffer,
+						descriptorCount = 1, // > 1 for arrays
+						stageFlags = stage
+					});
+				}
+
+				foreach (ReflectionData.Texture ubo in data.Textures)
+				{
+					bindings.Add(new VkDescriptorSetLayoutBinding
+					{
+						binding = ubo.Binding,
+						descriptorType = VkDescriptorType.CombinedImageSampler,
+						descriptorCount = 1, // > 1 for arrays
+						stageFlags = stage
+					});
+				}
 			}
 
 			VkDescriptorSetLayoutCreateInfo layoutCreateInfo = new VkDescriptorSetLayoutCreateInfo
 			{
 				sType = VkStructureType.DescriptorSetLayoutCreateInfo,
-				bindingCount = (uint)bindings.Length
+				bindingCount = (uint)bindings.Count
 			};
-			fixed (VkDescriptorSetLayoutBinding* ptr = bindings) layoutCreateInfo.pBindings = ptr;
+			fixed (VkDescriptorSetLayoutBinding* ptr = bindings.GetInternalArray()) layoutCreateInfo.pBindings = ptr;
 
 			Vulkan.vkCreateDescriptorSetLayout(graphicsDevice.LogicalDevice, &layoutCreateInfo, null, out DescriptorSetLayout).CheckResult();
-		}
 
-		private unsafe void CreateDescriptorPool()
-		{
-			VkDescriptorPoolSize[] poolSizes = new VkDescriptorPoolSize[shader.DescriptorTypes.Count];
-			for (int i = 0; i < poolSizes.Length; i++)
+			List<VkDescriptorPoolSize> poolSizes = new List<VkDescriptorPoolSize>();
+			foreach (VkDescriptorType type in bindings.Select(binding => binding.descriptorType))
 			{
-				poolSizes[i] = new VkDescriptorPoolSize
+				poolSizes.Add(new VkDescriptorPoolSize
 				{
-					type = shader.DescriptorTypes[i].type,
+					type = type,
 					descriptorCount = (uint)UniformBuffers.Length
-				};
+				});
 			}
 
 			VkDescriptorPoolCreateInfo poolCreateInfo = new VkDescriptorPoolCreateInfo
 			{
 				sType = VkStructureType.DescriptorPoolCreateInfo,
-				poolSizeCount = (uint)poolSizes.Length,
+				poolSizeCount = (uint)poolSizes.Count,
 				maxSets = (uint)UniformBuffers.Length
 			};
-			fixed (VkDescriptorPoolSize* ptr = poolSizes) poolCreateInfo.pPoolSizes = ptr;
+			fixed (VkDescriptorPoolSize* ptr = poolSizes.GetInternalArray()) poolCreateInfo.pPoolSizes = ptr;
 
 			Vulkan.vkCreateDescriptorPool(graphicsDevice.LogicalDevice, &poolCreateInfo, null, out DescriptorPool).CheckResult();
 		}
@@ -108,6 +136,7 @@ namespace Proxima.Graphics
 
 			for (int i = 0; i < DescriptorSets.Length; i++)
 			{
+				// todo: abstract this out
 				VkDescriptorBufferInfo bufferInfo = new VkDescriptorBufferInfo
 				{
 					buffer = (VkBuffer)UniformBuffers[i],
@@ -119,10 +148,11 @@ namespace Proxima.Graphics
 				VkDescriptorImageInfo imageInfo = new VkDescriptorImageInfo
 				{
 					imageLayout = VkImageLayout.ShaderReadOnlyOptimal,
-					imageView = graphicsDevice.Texture.View,
-					sampler = graphicsDevice.Texture.Sampler
+					imageView = texture.View,
+					sampler = texture.Sampler
 				};
 
+				// todo: abstract this out
 				VkWriteDescriptorSet[] writeDescriptorSets =
 				{
 					new VkWriteDescriptorSet
@@ -153,18 +183,23 @@ namespace Proxima.Graphics
 
 		private unsafe void CreateGraphicsPipeline()
 		{
-			// todo: abstract this out
-			var bindingDescription = Renderer2D.Vertex.GetBindingDescription();
-			var attributeDescriptions = Renderer2D.Vertex.GetAttributeDescriptions();
+			List<VkVertexInputBindingDescription> bindingDescriptions = new List<VkVertexInputBindingDescription>();
+			List<VkVertexInputAttributeDescription> attributeDescriptions = new List<VkVertexInputAttributeDescription>();
+
+			foreach (VertexBuffer buffer in vertexBuffers)
+			{
+				bindingDescriptions.Add(buffer.GetVertexInputBindingDescription());
+				attributeDescriptions.AddRange(buffer.GetVertexInputAttributeDescriptions());
+			}
 
 			VkPipelineVertexInputStateCreateInfo vertexInputInfo = new VkPipelineVertexInputStateCreateInfo
 			{
 				sType = VkStructureType.PipelineVertexInputStateCreateInfo,
-				vertexBindingDescriptionCount = 1,
-				pVertexBindingDescriptions = &bindingDescription,
-				vertexAttributeDescriptionCount = (uint)attributeDescriptions.Length
+				vertexBindingDescriptionCount = (uint)bindingDescriptions.Count,
+				vertexAttributeDescriptionCount = (uint)attributeDescriptions.Count
 			};
-			fixed (VkVertexInputAttributeDescription* ptr = attributeDescriptions) vertexInputInfo.pVertexAttributeDescriptions = ptr;
+			fixed (VkVertexInputBindingDescription* ptr = bindingDescriptions.GetInternalArray()) vertexInputInfo.pVertexBindingDescriptions = ptr;
+			fixed (VkVertexInputAttributeDescription* ptr = attributeDescriptions.GetInternalArray()) vertexInputInfo.pVertexAttributeDescriptions = ptr;
 
 			VkPipelineInputAssemblyStateCreateInfo inputAssembly = new VkPipelineInputAssemblyStateCreateInfo
 			{
@@ -283,10 +318,7 @@ namespace Proxima.Graphics
 				stageCount = (uint)shader.Stages.Count
 			};
 
-			FieldInfo fieldInfo = shader.Stages.GetType().GetField("_items", BindingFlags.NonPublic | BindingFlags.Instance);
-			VkPipelineShaderStageCreateInfo[] p = (VkPipelineShaderStageCreateInfo[])fieldInfo.GetValue(shader.Stages);
-
-			fixed (VkPipelineShaderStageCreateInfo* ptr = p) pipelineCreateInfo.pStages = ptr;
+			fixed (VkPipelineShaderStageCreateInfo* ptr = shader.Stages.GetInternalArray()) pipelineCreateInfo.pStages = ptr;
 
 			Vulkan.vkCreateGraphicsPipeline(graphicsDevice.LogicalDevice, VkPipelineCache.Null, pipelineCreateInfo, out var pipeline).CheckResult();
 			Pipeline = pipeline;

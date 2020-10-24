@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Proxima.Graphics;
@@ -78,19 +77,27 @@ namespace Proxima
 
 			defaultShader = AssetManager.LoadShader("Assets/test");
 
+			VertexBuffer = new VertexBuffer<Vertex>(gd, MaxQuads * 4);
+			VertexBuffer.SetVertexInputBindingDescription(Vertex.GetBindingDescription());
+			VertexBuffer.SetVertexInputAttributeDescriptions(Vertex.GetAttributeDescriptions());
+			
+			IndexBuffer = new IndexBuffer<uint>(gd, MaxQuads * 6);
+
 			GraphicsPipelines = new Dictionary<Shader, GraphicsPipeline>
 			{
 				{
 					defaultShader, new GraphicsPipeline(gd, new GraphicsPipeline.Options
 					{
 						UniformBufferType = typeof(UniformBufferObject),
-						Shader = defaultShader
+						Shader = defaultShader,
+						Texture = graphicsDevice.Texture
+					}, pipeline =>
+					{
+						pipeline.AddVertexBuffer(VertexBuffer);
+						pipeline.AddUniformBuffer<UniformBufferObject>();
 					})
 				}
 			};
-
-			VertexBuffer = new VertexBuffer<Vertex>(gd, MaxQuads * 4);
-			IndexBuffer = new IndexBuffer<uint>(gd, MaxQuads * 6);
 		}
 
 		private static Shader ActiveShader;
@@ -116,18 +123,18 @@ namespace Proxima
 		{
 			if (shader != null)
 			{
-				if(!GraphicsPipelines.ContainsKey(shader))
+				if (!GraphicsPipelines.ContainsKey(shader))
 				{
 					GraphicsPipelines.Add(shader, new GraphicsPipeline(gd, new GraphicsPipeline.Options
 					{
 						UniformBufferType = typeof(UniformBufferObject),
 						Shader = shader
-					}));
+					}, pipeline => { pipeline.AddVertexBuffer(VertexBuffer); }));
 				}
 
 				ActiveShader = shader;
 			}
-			else ActiveShader = defaultShader;	
+			else ActiveShader = defaultShader;
 		}
 
 		public static void Begin(Matrix4x4 camera, Color color, Shader? shader = null)

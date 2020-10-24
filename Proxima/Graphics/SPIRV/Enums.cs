@@ -152,4 +152,90 @@ namespace Proxima
 		UserTypeGOOGLE = 5636,
 		Max = 0x7fffffff
 	}
+
+	public enum SpirvExecutionModel
+	{
+		Vertex = 0,
+		TessellationControl = 1,
+		TessellationEvaluation = 2,
+		Geometry = 3,
+		Fragment = 4,
+		GLCompute = 5,
+		Kernel = 6,
+		TaskNV = 5267,
+		MeshNV = 5268,
+		RayGenerationKHR = 5313,
+		RayGenerationNV = 5313,
+		IntersectionKHR = 5314,
+		IntersectionNV = 5314,
+		AnyHitKHR = 5315,
+		AnyHitNV = 5315,
+		ClosestHitKHR = 5316,
+		ClosestHitNV = 5316,
+		MissKHR = 5317,
+		MissNV = 5317,
+		CallableKHR = 5318,
+		CallableNV = 5318,
+		Max = 0x7fffffff,
+	}
+	
+	public enum BaseType
+	{
+		Unknown,
+		Void,
+		Boolean,
+		SByte,
+		UByte,
+		Short,
+		UShort,
+		Int,
+		UInt,
+		Int64,
+		UInt64,
+		AtomicCounter,
+		Half,
+		Float,
+		Double,
+		Struct,
+		Image,
+		SampledImage,
+		Sampler,
+		AccelerationStructure,
+		RayQuery,
+
+		// Keep internal types at the end.
+		ControlPointArray,
+		Char
+	}
+	
+	public enum StorageClass {
+		StorageClassUniformConstant = 0,
+		StorageClassInput = 1,
+		StorageClassUniform = 2,
+		StorageClassOutput = 3,
+		StorageClassWorkgroup = 4,
+		StorageClassCrossWorkgroup = 5,
+		StorageClassPrivate = 6,
+		StorageClassFunction = 7,
+		StorageClassGeneric = 8,
+		StorageClassPushConstant = 9,
+		StorageClassAtomicCounter = 10,
+		StorageClassImage = 11,
+		StorageClassStorageBuffer = 12,
+		StorageClassCallableDataKHR = 5328,
+		StorageClassCallableDataNV = 5328,
+		StorageClassIncomingCallableDataKHR = 5329,
+		StorageClassIncomingCallableDataNV = 5329,
+		StorageClassRayPayloadKHR = 5338,
+		StorageClassRayPayloadNV = 5338,
+		StorageClassHitAttributeKHR = 5339,
+		StorageClassHitAttributeNV = 5339,
+		StorageClassIncomingRayPayloadKHR = 5342,
+		StorageClassIncomingRayPayloadNV = 5342,
+		StorageClassShaderRecordBufferKHR = 5343,
+		StorageClassShaderRecordBufferNV = 5343,
+		StorageClassPhysicalStorageBuffer = 5349,
+		StorageClassPhysicalStorageBufferEXT = 5349,
+		StorageClassMax = 0x7fffffff,
+	}
 }

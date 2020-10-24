@@ -29,7 +29,7 @@ namespace Proxima
 		public static extern SpirvResult CreateContext(out IntPtr context);
 
 		[DllImport(LibraryName, EntryPoint = "spvc_context_set_error_callback")]
-		public static extern void SetDebugCallback(IntPtr context, IntPtr func, IntPtr userdata);
+		public static extern void SetErrorCallback(IntPtr context, IntPtr func, IntPtr userdata);
 
 		[DllImport(LibraryName, EntryPoint = "spvc_context_destroy")]
 		public static extern void DestroyContext(IntPtr context);
@@ -43,6 +43,17 @@ namespace Proxima
 		[DllImport(LibraryName, EntryPoint = "spvc_compiler_create_shader_resources")]
 		public static extern SpirvResult CreateShaderResources(IntPtr compiler, out IntPtr resources);
 
+		[DllImport(LibraryName, EntryPoint = "spvc_compiler_get_entry_points")]
+		public static extern void GetEntryPoints(IntPtr compiler, out IntPtr entryPoints, out uint entryPointCount);
+		
+		public static unsafe ReadOnlySpan<SpirvEntryPoint> GetEntryPoints(IntPtr resources)
+		{
+			GetEntryPoints(resources,  out var list, out var size);
+
+			ReadOnlySpan<SpirvEntryPoint> span = new ReadOnlySpan<SpirvEntryPoint>((void*)list, (int)size);
+			return span;
+		}
+		
 		[DllImport(LibraryName, EntryPoint = "spvc_resources_get_resource_list_for_type")]
 		public static extern SpirvResult GetResourceListForType(IntPtr resources, SpirvResourceType resourceType, out IntPtr resourceList, out uint resourceSize);
 
@@ -57,61 +68,76 @@ namespace Proxima
 		[DllImport(LibraryName, EntryPoint = "spvc_compiler_get_decoration")]
 		public static extern uint GetDecoration(IntPtr compiler, ulong id, SpirvDecoration decoration);
 
+		[DllImport(LibraryName, EntryPoint = "spvc_compiler_get_type_handle")]
+		public static extern IntPtr GetTypeHandle(IntPtr compiler, ulong id);
+
+		[DllImport(LibraryName, EntryPoint = "spvc_type_get_basetype")]
+		public static extern BaseType GetTypeBaseType(IntPtr type);
+		
+		[DllImport(LibraryName, EntryPoint = "spvc_type_get_num_member_types")]
+		public static extern uint GetMemberTypesCount(IntPtr type);
+
+		[DllImport(LibraryName, EntryPoint = "spvc_type_get_member_type")]
+		public static extern uint GetMemberType(IntPtr type, uint index);
+
+		[DllImport(LibraryName, EntryPoint = "spvc_type_get_storage_class")]
+		public static extern StorageClass GetTypeStorageClass(IntPtr type);
+		
 		[DllImport(LibraryName, EntryPoint = "spvc_context_release_allocations")]
 		public static extern void ReleaseAllocations(IntPtr context);
 
 		public delegate void SPIRVCallback(IntPtr data, IntPtr error);
 		
-		internal static (ShaderStage, Dictionary<ShaderStage, string>) GetStages(string path)
-		{
-			const int OpEntryPoint = 15;
-
-			ShaderStage shaderStages = ShaderStage.None;
-			Dictionary<ShaderStage, string> entryPoints = new Dictionary<ShaderStage, string>();
-			
-			using BinaryReader stream = new BinaryReader(File.OpenRead(path), Encoding.UTF8);
-
-// Parse SPIR-V data
-			Debug.Assert(stream.ReadInt32() == 0x07230203);
-			int version = stream.ReadInt32();
-			int genmagnum = stream.ReadInt32();
-			int bound = stream.ReadInt32();
-			int reserved = stream.ReadInt32();
-
-// Instruction stream
-			while (stream.BaseStream.Position < stream.BaseStream.Length)
-			{
-				long pos = stream.BaseStream.Position;
-				uint bytes = stream.ReadUInt32();
-				int opcode = (int)bytes & 0xffff;
-				int wordcount = (int)(bytes >> 16) & 0xffff;
-				if (opcode == OpEntryPoint)
-				{
-					int executionModel = stream.ReadInt32();
-					Debug.Assert(executionModel >= 0);
-					if (executionModel < 6)
-					{
-						int entryPointID = stream.ReadInt32(); // entry point
-
-						ShaderStage currentStage = executionModel switch
-						{
-							0 => ShaderStage.Vertex,
-							1 => ShaderStage.TessellationControl,
-							2 => ShaderStage.TessellationEvaluation,
-							3 => ShaderStage.Geometry,
-							4 => ShaderStage.Fragment,
-							5 => ShaderStage.GLCompute,
-						};
-						shaderStages |= currentStage;
-						
-						entryPoints.Add(currentStage,stream.ReadNullTerminatedString() );
-					}
-				}
-
-				stream.BaseStream.Seek(pos + wordcount * 4, SeekOrigin.Begin);
-			}
-
-			return (shaderStages, entryPoints);
-		}
+// 		internal static (ShaderStage, Dictionary<ShaderStage, string>) GetStages(string path)
+// 		{
+// 			const int OpEntryPoint = 15;
+//
+// 			ShaderStage shaderStages = ShaderStage.None;
+// 			Dictionary<ShaderStage, string> entryPoints = new Dictionary<ShaderStage, string>();
+// 			
+// 			using BinaryReader stream = new BinaryReader(File.OpenRead(path), Encoding.UTF8);
+//
+// // Parse SPIR-V data
+// 			Debug.Assert(stream.ReadInt32() == 0x07230203);
+// 			int version = stream.ReadInt32();
+// 			int genmagnum = stream.ReadInt32();
+// 			int bound = stream.ReadInt32();
+// 			int reserved = stream.ReadInt32();
+//
+// // Instruction stream
+// 			while (stream.BaseStream.Position < stream.BaseStream.Length)
+// 			{
+// 				long pos = stream.BaseStream.Position;
+// 				uint bytes = stream.ReadUInt32();
+// 				int opcode = (int)bytes & 0xffff;
+// 				int wordcount = (int)(bytes >> 16) & 0xffff;
+// 				if (opcode == OpEntryPoint)
+// 				{
+// 					int executionModel = stream.ReadInt32();
+// 					Debug.Assert(executionModel >= 0);
+// 					if (executionModel < 6)
+// 					{
+// 						int entryPointID = stream.ReadInt32(); // entry point
+//
+// 						ShaderStage currentStage = executionModel switch
+// 						{
+// 							0 => ShaderStage.Vertex,
+// 							1 => ShaderStage.TessellationControl,
+// 							2 => ShaderStage.TessellationEvaluation,
+// 							3 => ShaderStage.Geometry,
+// 							4 => ShaderStage.Fragment,
+// 							5 => ShaderStage.GLCompute,
+// 						};
+// 						shaderStages |= currentStage;
+// 						
+// 						entryPoints.Add(currentStage,stream.ReadNullTerminatedString() );
+// 					}
+// 				}
+//
+// 				stream.BaseStream.Seek(pos + wordcount * 4, SeekOrigin.Begin);
+// 			}
+//
+// 			return (shaderStages, entryPoints);
+// 		}
 	}
 }

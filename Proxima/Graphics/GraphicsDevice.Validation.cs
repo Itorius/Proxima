@@ -24,12 +24,7 @@ namespace Proxima.Graphics
 			string message = Interop.GetString(pCallbackData->pMessage);
 			if (messageTypes == VkDebugUtilsMessageTypeFlagsEXT.Validation)
 			{
-				if (messageSeverity == VkDebugUtilsMessageSeverityFlagsEXT.Error)
-				{
-					Log.Error($"[Vulkan]: Validation: {messageSeverity} - {message}");
-
-					if (pCallbackData->messageIdNumber != 0xde3cbaf) throw new Exception("");
-				}
+				if (messageSeverity == VkDebugUtilsMessageSeverityFlagsEXT.Error) Log.Error($"[Vulkan]: Validation: {messageSeverity} - {message}");
 				else if (messageSeverity == VkDebugUtilsMessageSeverityFlagsEXT.Warning) Log.Warn($"[Vulkan]: Validation: {messageSeverity} - {message}");
 				else Log.Info($"[Vulkan]: Validation: {messageSeverity} - {message}");
 			}
