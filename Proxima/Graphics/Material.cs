@@ -1,11 +1,12 @@
+using System.Collections.Generic;
 using System.Linq;
+using Vortice.Vulkan;
 
 namespace Proxima.Graphics
 {
 	public class Material : GraphicsObject
 	{
 		private GraphicsPipeline pipeline;
-		
 
 		internal Material(GraphicsDevice graphicsDevice, Shader shader) : base(graphicsDevice)
 		{
@@ -14,15 +15,21 @@ namespace Proxima.Graphics
 				
 			}
 
-			pipeline = new GraphicsPipeline(graphicsDevice, new GraphicsPipeline.Options
+			pipeline = new GraphicsPipeline(graphicsDevice, pipeline =>
 			{
-				Shader = shader
-			}, pipeline =>
-			{
-				foreach (var ubo in shader.ReflectionData.SelectMany(x => x.Value.UBOs))
+				pipeline.SetShader(shader);
+				
+				foreach (KeyValuePair<VkShaderStageFlags,ReflectionData> pair in shader.ReflectionData)
 				{
-				// pipeline.AddUniformBuffer();
+					foreach (var ubo in pair.Value.UBOs)
+					{
+						int size = pair.Value.Types[ubo.Type].Members.Sum(x => (x.Type == "mat4" ? 64 : 0));
+
+						// pipeline.AddUniformBuffer(new uni);
+					}
 				}
+				
+				
 				
 				
 			});

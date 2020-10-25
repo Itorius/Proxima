@@ -9,7 +9,7 @@ namespace Proxima.Graphics
 		{
 		}
 
-		public abstract void SetData(object data);
+		public abstract void SetData<T>(T data) where T : unmanaged;
 	}
 
 	public class UniformBuffer<T> : UniformBuffer where T : unmanaged
@@ -25,13 +25,13 @@ namespace Proxima.Graphics
 			this.memory = memory;
 		}
 
-		public override unsafe void SetData(object data)
+		public override unsafe void SetData<K>(K data)
 		{
-			if (!(data is T p)) throw new Exception($"Wrong uniform data type, expected '{typeof(T).FullName}'");
+			if (sizeof(K) != sizeof(T)) throw new Exception($"Wrong uniform data type, expected '{typeof(T).FullName}'");
 
 			void* dataPtr = null;
 			Vulkan.vkMapMemory(graphicsDevice.LogicalDevice, memory, 0, Size, 0, &dataPtr);
-			System.Buffer.MemoryCopy(&p, dataPtr, Size, Size);
+			System.Buffer.MemoryCopy(&data, dataPtr, Size, Size);
 			Vulkan.vkUnmapMemory(graphicsDevice.LogicalDevice, memory);
 		}
 	}

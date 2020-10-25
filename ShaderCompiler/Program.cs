@@ -1,11 +1,13 @@
 ﻿using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 
 namespace ShaderCompiler
 {
 	public static class Program
 	{
+		// todo: tesc, tese, geom, comp
 		public static void Main(string[] args)
 		{
 			string currentDirectory = Directory.GetCurrentDirectory();
@@ -28,6 +30,8 @@ namespace ShaderCompiler
 				process?.WaitForExit();
 
 				string vertexReflectionData = process?.StandardOutput.ReadToEnd() ?? "{}";
+				vertexReflectionData = Regex.Replace(vertexReflectionData, @"\s+", "");
+				File.WriteAllText($"{name}.vert.json", vertexReflectionData);
 
 				Process.Start(new ProcessStartInfo
 				{
@@ -46,8 +50,10 @@ namespace ShaderCompiler
 				process?.WaitForExit();
 
 				string fragmentReflectionData = process?.StandardOutput.ReadToEnd() ?? "{}";
+				fragmentReflectionData = Regex.Replace(fragmentReflectionData, @"\s+", "");
+				File.WriteAllText($"{name}.frag.json", fragmentReflectionData);
 
-				using Stream stream = File.OpenWrite($"{name}.pxshader");
+				using Stream stream = File.Create($"{name}.pxshader");
 				using BinaryWriter writer = new BinaryWriter(stream);
 
 				byte[] data = File.ReadAllBytes("temp.vert.spv");

@@ -291,7 +291,7 @@ namespace Proxima.Graphics
 			OnInvalidate.Invoke();
 		}
 
-		public unsafe VkCommandBuffer Begin(Color4 color, uint index, GraphicsPipeline graphicsPipeline)
+		public unsafe VkCommandBuffer Begin(Color4 color, uint index)
 		{
 			VkCommandBufferAllocateInfo allocateInfo = new VkCommandBufferAllocateInfo
 			{
@@ -328,8 +328,6 @@ namespace Proxima.Graphics
 			fixed (VkClearValue* ptr = clearValues) renderPassBeginInfo.pClearValues = ptr;
 
 			Vulkan.vkCmdBeginRenderPass(buffer, &renderPassBeginInfo, VkSubpassContents.Inline);
-
-			Vulkan.vkCmdBindPipeline(buffer, VkPipelineBindPoint.Graphics, graphicsPipeline.Pipeline);
 
 			return buffer;
 		}
