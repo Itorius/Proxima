@@ -41,17 +41,17 @@ namespace Sandbox
 			Matrix4x4 view = Matrix4x4.CreateTranslation(MathF.Sin(Time.TotalUpdateTime) * 100f, 0f, 0f);
 			view = Matrix4x4.Identity;
 
-			Renderer2D.Begin(view * projection, System.Drawing.Color.Black, shader);
+			Renderer2D.Begin(view * projection, System.Drawing.Color.Black/*, shader*/);
 
 			float scale = 1.5f;
 
-			Renderer2D.GraphicsPipelines[shader].GetBuffer<Renderer2D.Data>().SetData(new Renderer2D.Data
-			{
-				u_Area = new Vector4(0f, 0f, scale * (window.ClientWidth / (float)window.ClientHeight), scale),
-				u_MaxIterations = 16,
-				u_Angle = MathF.PI * 0.5f,
-				u_Time = 0f
-			});
+			// Renderer2D.GraphicsPipelines[shader].GetBuffer<Renderer2D.Data>().SetData(new Renderer2D.Data
+			// {
+			// 	u_Area = new Vector4(0f, 0f, scale * (window.ClientWidth / (float)window.ClientHeight), scale),
+			// 	u_MaxIterations = 16,
+			// 	u_Angle = MathF.PI * 0.5f,
+			// 	u_Time = 0f
+			// });
 
 			Renderer2D.DrawQuad(new Vector3(0f, 0f, -0.1f), new Vector2(window.ClientWidth, window.ClientHeight), new Color4(Vector4.One));
 

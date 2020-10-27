@@ -57,6 +57,12 @@ namespace Proxima
 		{
 			foreach (T VARIABLE in collection) predicate(VARIABLE);
 		}
+		
+		public static void ForEach<T>(this IEnumerable<T> collection, Action<int, T> predicate)
+		{
+			int i = 0;
+			foreach (T VARIABLE in collection) predicate(i++, VARIABLE);
+		}
 
 		public static IEnumerable<int> IndicesOf<T>(this IEnumerable<T> collection, Func<T, bool> predicate)
 		{

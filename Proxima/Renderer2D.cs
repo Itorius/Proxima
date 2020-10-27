@@ -98,10 +98,10 @@ namespace Proxima
 					{
 						pipeline.SetShader(defaultShader);
 						pipeline.AddVertexBuffer(VertexBuffer);
-						pipeline.AddUniformBuffer<UniformBufferObject>();
-						pipeline.AddUniformBuffer<k>();
-						pipeline.AddTexture(graphicsDevice.Texture);
-						pipeline.AddTexture(cat);
+						pipeline.AddUniformBuffer<UniformBufferObject>(0);
+						pipeline.AddUniformBuffer<k>(3);
+						pipeline.AddTexture(1, graphicsDevice.Texture);
+						pipeline.AddTexture(2, cat);
 					})
 				}
 			};
@@ -149,8 +149,8 @@ namespace Proxima
 					{
 						pipeline.SetShader(shader);
 						pipeline.AddVertexBuffer(VertexBuffer);
-						pipeline.AddUniformBuffer<UniformBufferObject>();
-						pipeline.AddUniformBuffer<Data>();
+						pipeline.AddUniformBuffer<UniformBufferObject>(0);
+						pipeline.AddUniformBuffer<Data>(1);
 						// pipeline.AddTexture(gd.Texture);
 					}));
 				}
@@ -173,10 +173,10 @@ namespace Proxima
 			// ubo.Projection.M22 *= -1;
 
 			GraphicsPipelines[ActiveShader].GetBuffer<UniformBufferObject>().SetData(ubo);
-			// GraphicsPipelines[ActiveShader].GetBuffer<k>().SetData(new k
-			// {
-			// 	m = Matrix4x4.CreateTranslation(500f, 0f,0f)
-			// });
+			GraphicsPipelines[ActiveShader].GetBuffer<k>().SetData(new k
+			{
+				m = Matrix4x4.Identity
+			});
 
 			buffer = gd.Begin(new Color4(color), gd.CurrentFrameIndex);
 			GraphicsPipelines[ActiveShader].Bind(buffer);

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Vortice.Vulkan;
@@ -46,6 +47,8 @@ namespace Proxima.Graphics
 			[JsonPropertyName("name")] public string Name { get; set; }
 
 			[JsonPropertyName("location")] public int Location { get; set; }
+
+			public VkShaderStageFlags Stage { get; set; }
 		}
 
 		public struct Output
@@ -55,6 +58,8 @@ namespace Proxima.Graphics
 			[JsonPropertyName("name")] public string Name { get; set; }
 
 			[JsonPropertyName("location")] public int Location { get; set; }
+
+			public VkShaderStageFlags Stage { get; set; }
 		}
 
 		public struct Ubo
@@ -68,6 +73,8 @@ namespace Proxima.Graphics
 			[JsonPropertyName("set")] public uint Set { get; set; }
 
 			[JsonPropertyName("binding")] public uint Binding { get; set; }
+
+			public VkShaderStageFlags Stage { get; set; }
 		}
 
 		public struct Texture
@@ -79,6 +86,8 @@ namespace Proxima.Graphics
 			[JsonPropertyName("set")] public uint Set { get; set; }
 
 			[JsonPropertyName("binding")] public uint Binding { get; set; }
+
+			public VkShaderStageFlags Stage { get; set; }
 		}
 
 		[JsonPropertyName("entryPoints")] public List<EntryPoint> EntryPoints { get; set; } = new List<EntryPoint>();
@@ -100,12 +109,13 @@ namespace Proxima.Graphics
 
 		public List<VkPipelineShaderStageCreateInfo> Stages { get; }
 
-		public Dictionary<VkShaderStageFlags, ReflectionData> ReflectionData { get; } = new Dictionary<VkShaderStageFlags, ReflectionData>();
+		public ReflectionData ReflectionData;
 
 		internal Shader(GraphicsDevice graphicsDevice, string path) : base(graphicsDevice)
 		{
 			shaderModules = new List<VkShaderModule>();
 			Stages = new List<VkPipelineShaderStageCreateInfo>();
+			ReflectionData = new ReflectionData();
 
 			ProcessShader(path);
 		}
@@ -118,11 +128,15 @@ namespace Proxima.Graphics
 			while (stream.Position != stream.Length)
 			{
 				string stage = reader.ReadString();
-				VkShaderStageFlags vkStage = stage == "vertex" ? VkShaderStageFlags.Vertex : VkShaderStageFlags.Fragment;
+				VkShaderStageFlags vkStage = stage switch
+				{
+					"vertex" => VkShaderStageFlags.Vertex,
+					"fragment" => VkShaderStageFlags.Fragment,
+					_ => throw new Exception("Unsupported stage " + stage)
+				};
 
 				string reflectionDataStr = reader.ReadString();
 				var reflectionData = JsonSerializer.Deserialize<ReflectionData>(reflectionDataStr);
-				ReflectionData.Add(vkStage, reflectionData);
 
 				uint size = reader.ReadUInt32();
 				byte[] data = reader.ReadBytes((int)size);
@@ -132,6 +146,30 @@ namespace Proxima.Graphics
 
 				if (reflectionData != null)
 				{
+					ReflectionData.UBOs.AddRange(reflectionData.UBOs.Select(ubo =>
+					{
+						ubo.Stage = vkStage;
+						return ubo;
+					}));
+					
+					ReflectionData.Textures.AddRange(reflectionData.Textures.Select(texture =>
+					{
+						texture.Stage = vkStage;
+						return texture;
+					}));
+					
+					ReflectionData.Inputs.AddRange(reflectionData.Inputs.Select(input =>
+					{
+						input.Stage = vkStage;
+						return input;
+					}));
+					
+					ReflectionData.Outputs.AddRange(reflectionData.Outputs.Select(output =>
+					{
+						output.Stage = vkStage;
+						return output;
+					}));
+					
 					foreach (ReflectionData.EntryPoint entryPoint in reflectionData.EntryPoints)
 					{
 						VkPipelineShaderStageCreateInfo createInfo = new VkPipelineShaderStageCreateInfo

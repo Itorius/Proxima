@@ -36,8 +36,8 @@ namespace Proxima.Graphics
 		}
 
 		private List<VertexBuffer> vertexBuffers = new List<VertexBuffer>();
-		private List<Type> uniformBufferTypes = new List<Type>();
-		private List<Texture2D> textures = new List<Texture2D>();
+		private Dictionary<uint, Type> uniformBufferTypes = new Dictionary<uint, Type>();
+		private Dictionary<uint, Texture2D> textures = new Dictionary<uint, Texture2D>();
 		private Shader shader;
 
 		public void SetShader(Shader shader)
@@ -50,23 +50,23 @@ namespace Proxima.Graphics
 			vertexBuffers.Add(buffer);
 		}
 
-		public void AddUniformBuffer<T>() where T : unmanaged
+		public void AddUniformBuffer<T>(uint binding) where T : unmanaged
 		{
-			uniformBufferTypes.Add(typeof(T));
+			uniformBufferTypes.Add(binding, typeof(T));
 		}
 
-		public void AddTexture(Texture2D texture)
+		public void AddTexture(uint binding, Texture2D texture)
 		{
-			textures.Add(texture);
+			textures.Add(binding, texture);
 		}
 
 		public void Create()
 		{
 			UniformBuffers = new List<UniformBuffer[]>();
-			foreach (Type bufferType in uniformBufferTypes)
+			foreach (KeyValuePair<uint, Type> bufferType in uniformBufferTypes)
 			{
 				var buffers = new UniformBuffer[graphicsDevice.Swapchain.Length];
-				for (int i = 0; i < buffers.Length; i++) buffers[i] = (UniformBuffer)Activator.CreateInstance(typeof(UniformBuffer<>).MakeGenericType(bufferType), graphicsDevice);
+				for (int i = 0; i < buffers.Length; i++) buffers[i] = (UniformBuffer)Activator.CreateInstance(typeof(UniformBuffer<>).MakeGenericType(bufferType.Value), graphicsDevice);
 				UniformBuffers.Add(buffers);
 			}
 
@@ -80,29 +80,26 @@ namespace Proxima.Graphics
 		{
 			List<VkDescriptorSetLayoutBinding> bindings = new List<VkDescriptorSetLayoutBinding>();
 
-			foreach (var (stage, data) in shader.ReflectionData)
+			foreach (ReflectionData.Ubo ubo in shader.ReflectionData.UBOs)
 			{
-				foreach (ReflectionData.Ubo ubo in data.UBOs)
+				bindings.Add(new VkDescriptorSetLayoutBinding
 				{
-					bindings.Add(new VkDescriptorSetLayoutBinding
-					{
-						binding = ubo.Binding,
-						descriptorType = VkDescriptorType.UniformBuffer,
-						descriptorCount = 1, // > 1 for arrays
-						stageFlags = stage
-					});
-				}
+					binding = ubo.Binding,
+					descriptorType = VkDescriptorType.UniformBuffer,
+					descriptorCount = 1, // > 1 for arrays
+					stageFlags = ubo.Stage
+				});
+			}
 
-				foreach (ReflectionData.Texture texture in data.Textures)
+			foreach (ReflectionData.Texture texture in shader.ReflectionData.Textures)
+			{
+				bindings.Add(new VkDescriptorSetLayoutBinding
 				{
-					bindings.Add(new VkDescriptorSetLayoutBinding
-					{
-						binding = texture.Binding,
-						descriptorType = VkDescriptorType.CombinedImageSampler,
-						descriptorCount = 1, // > 1 for arrays
-						stageFlags = stage
-					});
-				}
+					binding = texture.Binding,
+					descriptorType = VkDescriptorType.CombinedImageSampler,
+					descriptorCount = 1, // > 1 for arrays
+					stageFlags = texture.Stage
+				});
 			}
 
 			VkDescriptorSetLayoutCreateInfo layoutCreateInfo = new VkDescriptorSetLayoutCreateInfo
@@ -166,15 +163,13 @@ namespace Proxima.Graphics
 				}
 
 				VkDescriptorImageInfo[] imageInfos = new VkDescriptorImageInfo[textures.Count];
-				for (int j = 0; j < imageInfos.Length; j++)
+
+				textures.ForEach((i, pair) => imageInfos[i] = new VkDescriptorImageInfo
 				{
-					imageInfos[j] = new VkDescriptorImageInfo
-					{
-						imageLayout = VkImageLayout.ShaderReadOnlyOptimal,
-						imageView = textures[j].View,
-						sampler = textures[j].Sampler
-					};
-				}
+					imageLayout = VkImageLayout.ShaderReadOnlyOptimal,
+					imageView = pair.Value.View,
+					sampler = pair.Value.Sampler
+				});
 
 				List<VkWriteDescriptorSet> writeDescriptorSets = new List<VkWriteDescriptorSet>();
 
@@ -187,8 +182,7 @@ namespace Proxima.Graphics
 						{
 							sType = VkStructureType.WriteDescriptorSet,
 							dstSet = descriptorSet,
-							// note: this is not nice
-							dstBinding = shader.ReflectionData.SelectMany(x => x.Value.UBOs).ToArray()[j].Binding,
+							dstBinding = shader.ReflectionData.UBOs[j].Binding,
 							dstArrayElement = 0,
 							descriptorType = VkDescriptorType.UniformBuffer,
 							descriptorCount = 1
@@ -207,8 +201,7 @@ namespace Proxima.Graphics
 						{
 							sType = VkStructureType.WriteDescriptorSet,
 							dstSet = descriptorSet,
-							// note: this is not nice
-							dstBinding = shader.ReflectionData[VkShaderStageFlags.Fragment].Textures[j].Binding,
+							dstBinding = shader.ReflectionData.Textures[j].Binding,
 							dstArrayElement = 0,
 							descriptorType = VkDescriptorType.CombinedImageSampler,
 							descriptorCount = 1
