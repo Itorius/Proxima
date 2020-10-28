@@ -1,18 +1,21 @@
+using System;
 using System.IO;
 using StbImageSharp;
 using Vortice.Vulkan;
 
 namespace Proxima.Graphics
 {
-	public class Texture2D : Texture
+	public class Texture1D : Texture
 	{
-		public unsafe Texture2D(GraphicsDevice graphicsDevice, string path) : base(graphicsDevice)
+		public unsafe Texture1D(GraphicsDevice graphicsDevice, string path) : base(graphicsDevice)
 		{
 			using var stream = File.OpenRead(path);
 			ImageResult image = ImageResult.FromStream(stream, ColorComponents.RedGreenBlueAlpha);
+			if (image.Height != 1) throw new Exception("Texture1D cannot have height over 1");
+
 			VkFormat imageFormat = VkFormat.R8G8B8A8SRgb;
 
-			ulong size = (ulong)(image.Width * image.Height * 4);
+			ulong size = (ulong)(image.Width * 4);
 
 			var (stagingBuffer, stagingMemory) = VulkanUtils.CreateBuffer(graphicsDevice, size, VkBufferUsageFlags.TransferSrc, VkMemoryPropertyFlags.HostVisible | VkMemoryPropertyFlags.HostCoherent);
 
@@ -24,8 +27,8 @@ namespace Proxima.Graphics
 			VkImageCreateInfo imageCreateInfo = new VkImageCreateInfo
 			{
 				sType = VkStructureType.ImageCreateInfo,
-				imageType = VkImageType.Image2D,
-				extent = new VkExtent3D(image.Width, image.Height, 1),
+				imageType = VkImageType.Image1D,
+				extent = new VkExtent3D(image.Width, 1, 1),
 				mipLevels = 1,
 				arrayLayers = 1,
 				format = imageFormat,
@@ -64,7 +67,7 @@ namespace Proxima.Graphics
 			{
 				sType = VkStructureType.ImageViewCreateInfo,
 				image = textureImage,
-				viewType = VkImageViewType.Image2D,
+				viewType = VkImageViewType.Image1D,
 				format = imageFormat,
 				subresourceRange = new VkImageSubresourceRange
 				{

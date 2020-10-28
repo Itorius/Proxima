@@ -37,7 +37,7 @@ namespace Proxima.Graphics
 		private List<UniformBuffer[]> UniformBuffers;
 		private List<VertexBuffer> vertexBuffers = new List<VertexBuffer>();
 		private Dictionary<uint, Type> uniformBufferTypes = new Dictionary<uint, Type>();
-		private Dictionary<uint, Texture2D> textures = new Dictionary<uint, Texture2D>();
+		private Dictionary<uint, Texture> textures = new Dictionary<uint, Texture>();
 		private Shader shader;
 
 		public void SetShader(Shader shader)
@@ -55,7 +55,7 @@ namespace Proxima.Graphics
 			uniformBufferTypes.Add(binding, typeof(T));
 		}
 
-		public void AddTexture(uint binding, Texture2D texture)
+		public void AddTexture(uint binding, Texture texture)
 		{
 			textures.Add(binding, texture);
 		}

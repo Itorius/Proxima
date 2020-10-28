@@ -31,8 +31,6 @@ namespace Proxima.Graphics
 		private VkFramebuffer[] Framebuffers;
 		private DepthBuffer DepthBuffer;
 
-		internal Texture2D Texture;
-
 		private int currentFrame;
 		private bool framebufferResized;
 
@@ -75,8 +73,6 @@ namespace Proxima.Graphics
 			RenderPass = new VulkanRenderPass(this, surfaceFormat.format);
 
 			Swapchain = new VulkanSwapchain(this);
-
-			Texture = new Texture2D(this, "Assets/Tom.png");
 
 			CreateFramebuffers();
 
@@ -429,8 +425,6 @@ namespace Proxima.Graphics
 
 			RenderPass.Dispose();
 			Swapchain.Dispose();
-
-			Texture.Dispose();
 
 			for (int i = 0; i < MaxFramesInFlight; i++)
 			{
