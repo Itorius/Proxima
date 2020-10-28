@@ -130,79 +130,16 @@ namespace Proxima.Graphics
 			using Compiler comp = new Compiler(new Options { SourceLanguage = SourceLanguage.Glsl });
 			using (Result res = comp.Compile(vertexPath, ShaderKind.VertexShader))
 			{
-				VkShaderModuleCreateInfo createInfo = new VkShaderModuleCreateInfo
-				{
-					sType = VkStructureType.ShaderModuleCreateInfo,
-					codeSize = new VkPointerSize(res.CodeLength),
-					pCode = (uint*)res.CodePointer.ToPointer()
-				};
-
-				Vulkan.vkCreateShaderModule(graphicsDevice.LogicalDevice, &createInfo, null, out VkShaderModule module).CheckResult();
-				shaderModules.Add(module);
+				CreateShaderModule(res, out var module);
 
 				ReflectModule(res, module, VkShaderStageFlags.Vertex);
 			}
 
 			using (Result res = comp.Compile(fragmentPath, ShaderKind.FragmentShader))
 			{
-				VkShaderModuleCreateInfo createInfo = new VkShaderModuleCreateInfo
-				{
-					sType = VkStructureType.ShaderModuleCreateInfo,
-					codeSize = new VkPointerSize(res.CodeLength),
-					pCode = (uint*)res.CodePointer.ToPointer()
-				};
-
-				Vulkan.vkCreateShaderModule(graphicsDevice.LogicalDevice, &createInfo, null, out VkShaderModule module).CheckResult();
-				shaderModules.Add(module);
+				CreateShaderModule(res, out var module);
 
 				ReflectModule(res, module, VkShaderStageFlags.Fragment);
-			}
-
-			using Stream stream = File.OpenRead($"{Path.GetDirectoryName(vertexPath)}/{Path.GetFileNameWithoutExtension(vertexPath)}.pxshader");
-			using BinaryReader reader = new BinaryReader(stream);
-
-			while (stream.Position != stream.Length)
-			{
-				string stage = reader.ReadString();
-				VkShaderStageFlags vkStage = stage switch
-				{
-					"vertex" => VkShaderStageFlags.Vertex,
-					"fragment" => VkShaderStageFlags.Fragment,
-					_ => throw new Exception("Unsupported stage " + stage)
-				};
-
-				string reflectionDataStr = reader.ReadString();
-				var reflectionData = JsonSerializer.Deserialize<ReflectionData>(reflectionDataStr);
-
-				uint size = reader.ReadUInt32();
-				byte[] data = reader.ReadBytes((int)size);
-
-				if (reflectionData != null)
-				{
-					ReflectionData.UBOs.AddRange(reflectionData.UBOs.Select(ubo =>
-					{
-						ubo.Stage = vkStage;
-						return ubo;
-					}));
-
-					ReflectionData.Textures.AddRange(reflectionData.Textures.Select(texture =>
-					{
-						texture.Stage = vkStage;
-						return texture;
-					}));
-
-					ReflectionData.Inputs.AddRange(reflectionData.Inputs.Select(input =>
-					{
-						input.Stage = vkStage;
-						return input;
-					}));
-
-					ReflectionData.Outputs.AddRange(reflectionData.Outputs.Select(output =>
-					{
-						output.Stage = vkStage;
-						return output;
-					}));
-				}
 			}
 
 			void ReflectModule(Result res, VkShaderModule module, VkShaderStageFlags stage)
@@ -213,7 +150,6 @@ namespace Proxima.Graphics
 				SPIRV.CreateCompiler(context, SpirvBackend.GLSL, ir, SpirvCaptureMode.TakeOwnership, out IntPtr compiler);
 
 				var entryPoints = SPIRV.GetEntryPoints(compiler);
-
 				foreach (SpirvEntryPoint entryPoint in entryPoints)
 				{
 					VkPipelineShaderStageCreateInfo shaderStageCreateInfo = new VkPipelineShaderStageCreateInfo
@@ -226,7 +162,44 @@ namespace Proxima.Graphics
 					Stages.Add(shaderStageCreateInfo);
 				}
 
+				SPIRV.CreateShaderResources(compiler, out IntPtr resources);
+
+				var uniformBuffers = SPIRV.GetResourceListForType(resources, SpirvResourceType.UniformBuffer);
+				foreach (SpirvReflectedResource buffer in uniformBuffers)
+				{
+					ReflectionData.UBOs.Add(new ReflectionData.Ubo
+					{
+						Binding = SPIRV.GetDecoration(compiler, buffer.ID, SpirvDecoration.Binding),
+						Set = SPIRV.GetDecoration(compiler, buffer.ID, SpirvDecoration.DescriptorSet),
+						Stage = stage
+					});
+				}
+
+				var textures = SPIRV.GetResourceListForType(resources, SpirvResourceType.SampledImage);
+				foreach (SpirvReflectedResource buffer in textures)
+				{
+					ReflectionData.Textures.Add(new ReflectionData.Texture
+					{
+						Binding = SPIRV.GetDecoration(compiler, buffer.ID, SpirvDecoration.Binding),
+						Set = SPIRV.GetDecoration(compiler, buffer.ID, SpirvDecoration.DescriptorSet),
+						Stage = stage
+					});
+				}
+
 				SPIRV.DestroyContext(context);
+			}
+
+			void CreateShaderModule(Result res, out VkShaderModule module)
+			{
+				VkShaderModuleCreateInfo createInfo = new VkShaderModuleCreateInfo
+				{
+					sType = VkStructureType.ShaderModuleCreateInfo,
+					codeSize = new VkPointerSize(res.CodeLength),
+					pCode = (uint*)res.CodePointer.ToPointer()
+				};
+
+				Vulkan.vkCreateShaderModule(graphicsDevice.LogicalDevice, &createInfo, null, out module).CheckResult();
+				shaderModules.Add(module);
 			}
 		}
 
