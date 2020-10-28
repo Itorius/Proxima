@@ -139,6 +139,8 @@ namespace Proxima.Graphics
 
 				Vulkan.vkCreateShaderModule(graphicsDevice.LogicalDevice, &createInfo, null, out VkShaderModule module).CheckResult();
 				shaderModules.Add(module);
+
+				ReflectModule(res, module, VkShaderStageFlags.Vertex);
 			}
 
 			using (Result res = comp.Compile(fragmentPath, ShaderKind.FragmentShader))
@@ -152,12 +154,13 @@ namespace Proxima.Graphics
 
 				Vulkan.vkCreateShaderModule(graphicsDevice.LogicalDevice, &createInfo, null, out VkShaderModule module).CheckResult();
 				shaderModules.Add(module);
+
+				ReflectModule(res, module, VkShaderStageFlags.Fragment);
 			}
 
 			using Stream stream = File.OpenRead($"{Path.GetDirectoryName(vertexPath)}/{Path.GetFileNameWithoutExtension(vertexPath)}.pxshader");
 			using BinaryReader reader = new BinaryReader(stream);
 
-			int i = 0;
 			while (stream.Position != stream.Length)
 			{
 				string stage = reader.ReadString();
@@ -173,9 +176,6 @@ namespace Proxima.Graphics
 
 				uint size = reader.ReadUInt32();
 				byte[] data = reader.ReadBytes((int)size);
-
-				// var shaderModule = CreateShaderModule(graphicsDevice.LogicalDevice, data);
-				// shaderModules.Add(shaderModule);
 
 				if (reflectionData != null)
 				{
@@ -202,19 +202,31 @@ namespace Proxima.Graphics
 						output.Stage = vkStage;
 						return output;
 					}));
-
-					foreach (ReflectionData.EntryPoint entryPoint in reflectionData.EntryPoints)
-					{
-						VkPipelineShaderStageCreateInfo createInfo = new VkPipelineShaderStageCreateInfo
-						{
-							sType = VkStructureType.PipelineShaderStageCreateInfo,
-							stage = EntryPointModeToStage(entryPoint.Mode),
-							module = shaderModules[i++],
-							pName = new VkString(entryPoint.Name)
-						};
-						Stages.Add(createInfo);
-					}
 				}
+			}
+
+			void ReflectModule(Result res, VkShaderModule module, VkShaderStageFlags stage)
+			{
+				SPIRV.CreateContext(out IntPtr context);
+
+				SPIRV.ParseSPIRV(context, res.CodePointer, res.CodeLength / 4, out IntPtr ir);
+				SPIRV.CreateCompiler(context, SpirvBackend.GLSL, ir, SpirvCaptureMode.TakeOwnership, out IntPtr compiler);
+
+				var entryPoints = SPIRV.GetEntryPoints(compiler);
+
+				foreach (SpirvEntryPoint entryPoint in entryPoints)
+				{
+					VkPipelineShaderStageCreateInfo shaderStageCreateInfo = new VkPipelineShaderStageCreateInfo
+					{
+						sType = VkStructureType.PipelineShaderStageCreateInfo,
+						stage = stage,
+						module = module,
+						pName = new VkString(entryPoint.Name)
+					};
+					Stages.Add(shaderStageCreateInfo);
+				}
+
+				SPIRV.DestroyContext(context);
 			}
 		}
 
