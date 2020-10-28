@@ -30,27 +30,29 @@ namespace Sandbox
 			}
 		}
 
+		private Shader shader;
+		private float angle = 0;
+		
 		public override void OnRender()
 		{
-			Shader shader = AssetManager.LoadShader("Assets/Mandelbrot_Dist");
-
 			Vector4 color = new HslColor(MathF.Sin(Time.TotalUpdateTime) * 0.5f + 0.5f, 1f, 0.5f, 0.7f).ToRGB();
 
 			Matrix4x4 projection = Matrix4x4.CreateOrthographic(window.ClientWidth, window.ClientHeight, -1f, 1f);
 			Matrix4x4 view = Matrix4x4.CreateTranslation(MathF.Sin(Time.TotalUpdateTime) * 100f, 0f, 0f);
 			view = Matrix4x4.Identity;
 
-			Renderer2D.Begin(view * projection, Vector4.Zero/*, shader*/);
+			Renderer2D.Begin(view * projection, Vector4.Zero, shader);
 
 			float scale = 1.5f;
-
-			// Renderer2D.GraphicsPipelines[shader].GetBuffer<Renderer2D.Data>().SetData(new Renderer2D.Data
-			// {
-			// 	u_Area = new Vector4(0f, 0f, scale * (window.ClientWidth / (float)window.ClientHeight), scale),
-			// 	u_MaxIterations = 16,
-			// 	u_Angle = MathF.PI * 0.5f,
-			// 	u_Time = 0f
-			// });
+			angle += Time.DeltaUpdateTime * 0.1f;
+			
+			Renderer2D.GraphicsPipelines[shader].GetBuffer<Renderer2D.Data>().SetData(new Renderer2D.Data
+			{
+				u_Area = new Vector4(0f, 0f, scale * (window.ClientWidth / (float)window.ClientHeight), scale),
+				u_MaxIterations = 128,
+				u_Angle = angle,
+				u_Time = 0f
+			});
 
 			Renderer2D.DrawQuad(new Vector3(0f, 0f, -0.1f), new Vector2(window.ClientWidth, window.ClientHeight), Vector4.One);
 
@@ -70,6 +72,8 @@ namespace Sandbox
 
 		public override void OnClose()
 		{
+			shader.Dispose();
+			
 			Console.ForegroundColor = ConsoleColor.Yellow;
 			foreach ((string key, List<double> value) in ProfileWeaver.profileData) Console.WriteLine($"Mean execution time of '{key}': {value.Average():F2} ms");
 			Console.ResetColor();
@@ -78,6 +82,8 @@ namespace Sandbox
 		[Profile]
 		public override void OnLoad()
 		{
+			shader = new Shader(GraphicsDevice, "Assets/Renderer2D.vert", "Assets/Mandelbrot_Dist.frag");
+			
 			Entity e = Entity.Null;
 
 			for (int i = 0; i < TestEntities; i++)

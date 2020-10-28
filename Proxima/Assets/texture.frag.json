@@ -1,1 +1,63 @@
-{"entryPoints":[{"name":"main","mode":"frag"}],"types":{"_26":{"name":"k","members":[{"name":"camera","type":"mat4","offset":0,"matrix_stride":16}]}},"inputs":[{"type":"vec2","name":"inUV","location":1},{"type":"vec4","name":"inColor","location":0}],"outputs":[{"type":"vec4","name":"outColor","location":0}],"textures":[{"type":"sampler2D","name":"texSampler","set":0,"binding":1},{"type":"sampler2D","name":"texSampler1","set":0,"binding":2}],"ubos":[{"type":"_26","name":"k","block_size":64,"set":0,"binding":3}]}
+{
+    "entryPoints" : [
+        {
+            "name" : "main",
+            "mode" : "frag"
+        }
+    ],
+    "types" : {
+        "_26" : {
+            "name" : "k",
+            "members" : [
+                {
+                    "name" : "camera",
+                    "type" : "mat4",
+                    "offset" : 0,
+                    "matrix_stride" : 16
+                }
+            ]
+        }
+    },
+    "inputs" : [
+        {
+            "type" : "vec2",
+            "name" : "inUV",
+            "location" : 1
+        },
+        {
+            "type" : "vec4",
+            "name" : "inColor",
+            "location" : 0
+        }
+    ],
+    "outputs" : [
+        {
+            "type" : "vec4",
+            "name" : "outColor",
+            "location" : 0
+        }
+    ],
+    "textures" : [
+        {
+            "type" : "sampler2D",
+            "name" : "texSampler",
+            "set" : 0,
+            "binding" : 1
+        },
+        {
+            "type" : "sampler2D",
+            "name" : "texSampler1",
+            "set" : 0,
+            "binding" : 2
+        }
+    ],
+    "ubos" : [
+        {
+            "type" : "_26",
+            "name" : "k",
+            "block_size" : 64,
+            "set" : 0,
+            "binding" : 3
+        }
+    ]
+}

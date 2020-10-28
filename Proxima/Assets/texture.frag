@@ -14,6 +14,5 @@ layout(location = 1) in vec2 inUV;
 layout(location = 0) out vec4 outColor;
 
 void main() {
-	outColor = texture(texSampler, inUV) *texture(texSampler1, inUV) ;
-//	outColor = kkkk.camera * outColor;
+	outColor = texture(texSampler, inUV);
 }

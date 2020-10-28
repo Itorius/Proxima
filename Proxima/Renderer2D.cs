@@ -68,7 +68,9 @@ namespace Proxima
 		private static IndexBuffer<uint> IndexBuffer;
 		private static Shader defaultShader;
 		private static Texture2D cat;
-
+		private static Texture1D gradient;
+		private static Texture2D tom;
+		
 		public const int MaxQuads = 1000;
 
 		private struct k
@@ -82,7 +84,7 @@ namespace Proxima
 			gd.OnInvalidate += () => GraphicsPipelines.ForEach(pair => pair.Value.Invalidate());
 
 			// defaultShader = AssetManager.LoadShader("Assets/texture");
-			defaultShader = new Shader(gd, "Assets/texture.vert", "Assets/texture.frag");
+			defaultShader = new Shader(gd, "Assets/Renderer2D.vert", "Assets/texture.frag");
 
 			VertexBuffer = new VertexBuffer<Vertex>(gd, MaxQuads * 4);
 			VertexBuffer.SetVertexInputBindingDescription(Vertex.GetBindingDescription());
@@ -90,8 +92,10 @@ namespace Proxima
 
 			IndexBuffer = new IndexBuffer<uint>(gd, MaxQuads * 6);
 
-			cat = new Texture2D(graphicsDevice, "Assets/Cat.png");
-
+			cat = AssetManager.LoadTexture("Assets/Cat.png");
+			gradient = AssetManager.LoadTexture1D("Assets/gradient.png");
+			tom = AssetManager.LoadTexture("Assets/Tom.png");
+			
 			GraphicsPipelines = new Dictionary<Shader, GraphicsPipeline>
 			{
 				{
@@ -101,7 +105,7 @@ namespace Proxima
 						pipeline.AddVertexBuffer(VertexBuffer);
 						pipeline.AddUniformBuffer<UniformBufferObject>(0);
 						pipeline.AddUniformBuffer<k>(3);
-						pipeline.AddTexture(1, graphicsDevice.Texture);
+						pipeline.AddTexture(1, tom);
 						pipeline.AddTexture(2, cat);
 					})
 				}
@@ -152,7 +156,7 @@ namespace Proxima
 						pipeline.AddVertexBuffer(VertexBuffer);
 						pipeline.AddUniformBuffer<UniformBufferObject>(0);
 						pipeline.AddUniformBuffer<Data>(1);
-						// pipeline.AddTexture(gd.Texture);
+						pipeline.AddTexture(2, gradient);
 					}));
 				}
 
@@ -174,10 +178,10 @@ namespace Proxima
 			// ubo.Projection.M22 *= -1;
 
 			GraphicsPipelines[ActiveShader].GetBuffer<UniformBufferObject>().SetData(ubo);
-			GraphicsPipelines[ActiveShader].GetBuffer<k>().SetData(new k
-			{
-				m = Matrix4x4.CreateRotationZ(2 * MathF.PI * (MathF.Sin(Time.TotalUpdateTime) * 0.5f + 0.5f))
-			});
+			// GraphicsPipelines[ActiveShader].GetBuffer<k>().SetData(new k
+			// {
+			// 	m = Matrix4x4.CreateRotationZ(2 * MathF.PI * (MathF.Sin(Time.TotalUpdateTime) * 0.5f + 0.5f))
+			// });
 
 			buffer = gd.Begin(color, gd.CurrentFrameIndex);
 			GraphicsPipelines[ActiveShader].Bind(buffer);
@@ -209,7 +213,7 @@ namespace Proxima
 			
 			VertexBuffer.Dispose();
 			IndexBuffer.Dispose();
-			cat.Dispose();
+
 			defaultShader.Dispose();
 		}
 	}

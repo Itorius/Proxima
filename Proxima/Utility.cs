@@ -45,6 +45,19 @@ namespace Proxima
 		}
 	}
 
+	public static class MathUtility
+	{
+		public static float Lerp(float a, float b, float value)
+		{
+			return a * (1f - value) + b * value;
+		}
+
+		public static float Sin(float angle, float min = 0f, float max = 1f)
+		{
+			return Lerp(min, max, MathF.Sin(Time.TotalUpdateTime) * 0.5f + 0.5f);
+		}
+	}
+
 	public static class Utility
 	{
 		public static T[] GetInternalArray<T>(this List<T> list)

@@ -121,7 +121,7 @@ namespace Proxima.Graphics
 			ProcessShader(path);
 		}
 
-		internal unsafe Shader(GraphicsDevice graphicsDevice, string vertexPath, string fragmentPath) : base(graphicsDevice)
+		public unsafe Shader(GraphicsDevice graphicsDevice, string vertexPath, string fragmentPath) : base(graphicsDevice)
 		{
 			shaderModules = new List<VkShaderModule>();
 			Stages = new List<VkPipelineShaderStageCreateInfo>();
@@ -130,6 +130,8 @@ namespace Proxima.Graphics
 			using Compiler comp = new Compiler(new Options { SourceLanguage = SourceLanguage.Glsl });
 			using (Result res = comp.Compile(vertexPath, ShaderKind.VertexShader))
 			{
+				if (res.Status != Status.Success) throw new Exception(res.ErrorMessage);
+
 				CreateShaderModule(res, out var module);
 
 				ReflectModule(res, module, VkShaderStageFlags.Vertex);
@@ -137,6 +139,8 @@ namespace Proxima.Graphics
 
 			using (Result res = comp.Compile(fragmentPath, ShaderKind.FragmentShader))
 			{
+				if (res.Status != Status.Success) throw new Exception(res.ErrorMessage);
+
 				CreateShaderModule(res, out var module);
 
 				ReflectModule(res, module, VkShaderStageFlags.Fragment);
