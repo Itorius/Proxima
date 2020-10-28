@@ -48,7 +48,6 @@ namespace Proxima.ECS
 		// todo: RemoveComponent
 
 		#region Equality members
-
 		public static bool operator ==(Entity e1, Entity? e2)
 		{
 			if (e2 == null)
@@ -66,7 +65,6 @@ namespace Proxima.ECS
 		public override bool Equals(object obj) => obj is Entity other && Equals(other);
 
 		public override int GetHashCode() => (int)ID;
-
 		#endregion
 
 		public override string ToString() => Index == IndexMask ? "Entity [null]" : $"Entity [index: {Index}, version: {Version}]";

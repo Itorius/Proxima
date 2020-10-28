@@ -1,7 +1,7 @@
+using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Proxima.Graphics;
-using Vortice.Mathematics;
 using Vortice.Vulkan;
 
 namespace Proxima
@@ -11,7 +11,7 @@ namespace Proxima
 		private struct Vertex
 		{
 			public Vector3 Position;
-			public Color4 Color;
+			public Vector4 Color;
 			public Vector2 UV;
 
 			public static unsafe VkVertexInputBindingDescription GetBindingDescription()
@@ -45,7 +45,7 @@ namespace Proxima
 				description.binding = 0;
 				description.location = 2;
 				description.format = VkFormat.R32G32SFloat;
-				description.offset = (uint)(sizeof(Vector3) + sizeof(Color4));
+				description.offset = (uint)(sizeof(Vector3) + sizeof(Vector4));
 
 				return descriptions;
 			}
@@ -81,7 +81,8 @@ namespace Proxima
 			gd = graphicsDevice;
 			gd.OnInvalidate += () => GraphicsPipelines.ForEach(pair => pair.Value.Invalidate());
 
-			defaultShader = AssetManager.LoadShader("Assets/texture");
+			// defaultShader = AssetManager.LoadShader("Assets/texture");
+			defaultShader = new Shader(gd, "Assets/texture.vert", "Assets/texture.frag");
 
 			VertexBuffer = new VertexBuffer<Vertex>(gd, MaxQuads * 4);
 			VertexBuffer.SetVertexInputBindingDescription(Vertex.GetBindingDescription());
@@ -109,27 +110,27 @@ namespace Proxima
 
 		private static Shader ActiveShader;
 
-		public static void Begin(Matrix4x4 camera, Color4 color, Shader? shader = null)
-		{
-			ChangeShader(shader);
-
-			UniformBufferObject ubo = new UniformBufferObject
-			{
-				Camera = camera
-			};
-
-			// ubo.Projection = Matrix4x4.CreatePerspectiveFieldOfView(MathHelper.ToRadians(45f), SwapchainExtent.Width / (float)SwapchainExtent.Height, 0.1f, 100f);
-			// ubo.Projection.M22 *= -1;
-
-			GraphicsPipelines[ActiveShader].GetBuffer<UniformBufferObject>().SetData(ubo);
-			GraphicsPipelines[ActiveShader].GetBuffer<k>().SetData(new k
-			{
-				m = Matrix4x4.CreateTranslation(50f, 0f, 0f)
-			});
-
-			buffer = gd.Begin(color, gd.CurrentFrameIndex);
-			GraphicsPipelines[ActiveShader].Bind(buffer);
-		}
+		// public static void Begin(Matrix4x4 camera, Vector4 color, Shader? shader = null)
+		// {
+		// 	ChangeShader(shader);
+		//
+		// 	UniformBufferObject ubo = new UniformBufferObject
+		// 	{
+		// 		Camera = camera
+		// 	};
+		//
+		// 	// ubo.Projection = Matrix4x4.CreatePerspectiveFieldOfView(MathHelper.ToRadians(45f), SwapchainExtent.Width / (float)SwapchainExtent.Height, 0.1f, 100f);
+		// 	// ubo.Projection.M22 *= -1;
+		//
+		// 	GraphicsPipelines[ActiveShader].GetBuffer<UniformBufferObject>().SetData(ubo);
+		// 	GraphicsPipelines[ActiveShader].GetBuffer<k>().SetData(new k
+		// 	{
+		// 		m = Matrix4x4.CreateTranslation(50f, 0f, 0f)
+		// 	});
+		//
+		// 	buffer = gd.Begin(color, gd.CurrentFrameIndex);
+		// 	GraphicsPipelines[ActiveShader].Bind(buffer);
+		// }
 
 		public struct Data
 		{
@@ -160,7 +161,7 @@ namespace Proxima
 			else ActiveShader = defaultShader;
 		}
 
-		public static void Begin(Matrix4x4 camera, Color color, Shader? shader = null)
+		public static void Begin(Matrix4x4 camera, Vector4 color, Shader? shader = null)
 		{
 			ChangeShader(shader);
 
@@ -175,10 +176,10 @@ namespace Proxima
 			GraphicsPipelines[ActiveShader].GetBuffer<UniformBufferObject>().SetData(ubo);
 			GraphicsPipelines[ActiveShader].GetBuffer<k>().SetData(new k
 			{
-				m = Matrix4x4.Identity
+				m = Matrix4x4.CreateRotationZ(2 * MathF.PI * (MathF.Sin(Time.TotalUpdateTime) * 0.5f + 0.5f))
 			});
 
-			buffer = gd.Begin(new Color4(color), gd.CurrentFrameIndex);
+			buffer = gd.Begin(color, gd.CurrentFrameIndex);
 			GraphicsPipelines[ActiveShader].Bind(buffer);
 		}
 
@@ -205,10 +206,11 @@ namespace Proxima
 			Vulkan.vkDeviceWaitIdle(gd.LogicalDevice);
 
 			GraphicsPipelines.ForEach(pair => pair.Value.Dispose());
-
+			
 			VertexBuffer.Dispose();
 			IndexBuffer.Dispose();
 			cat.Dispose();
+			defaultShader.Dispose();
 		}
 	}
 }

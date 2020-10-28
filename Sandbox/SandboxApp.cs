@@ -6,7 +6,6 @@ using Proxima;
 using Proxima.ECS;
 using Proxima.Graphics;
 using Proxima.Weaver;
-using Vortice.Mathematics;
 
 namespace Sandbox
 {
@@ -17,7 +16,7 @@ namespace Sandbox
 		public static Application CreateApplication() => new SandboxApp(new Options
 		{
 			Title = "Sandbox",
-			Size = new Size(1280, 720),
+			Size = new Vector2(1280, 720),
 			VSync = false
 		});
 
@@ -35,13 +34,13 @@ namespace Sandbox
 		{
 			Shader shader = AssetManager.LoadShader("Assets/Mandelbrot_Dist");
 
-			Color4 color = new HslColor(MathF.Sin(Time.TotalUpdateTime) * 0.5f + 0.5f, 1f, 0.5f, 0.7f).ToRGB();
+			Vector4 color = new HslColor(MathF.Sin(Time.TotalUpdateTime) * 0.5f + 0.5f, 1f, 0.5f, 0.7f).ToRGB();
 
 			Matrix4x4 projection = Matrix4x4.CreateOrthographic(window.ClientWidth, window.ClientHeight, -1f, 1f);
 			Matrix4x4 view = Matrix4x4.CreateTranslation(MathF.Sin(Time.TotalUpdateTime) * 100f, 0f, 0f);
 			view = Matrix4x4.Identity;
 
-			Renderer2D.Begin(view * projection, System.Drawing.Color.Black/*, shader*/);
+			Renderer2D.Begin(view * projection, Vector4.Zero/*, shader*/);
 
 			float scale = 1.5f;
 
@@ -53,7 +52,7 @@ namespace Sandbox
 			// 	u_Time = 0f
 			// });
 
-			Renderer2D.DrawQuad(new Vector3(0f, 0f, -0.1f), new Vector2(window.ClientWidth, window.ClientHeight), new Color4(Vector4.One));
+			Renderer2D.DrawQuad(new Vector3(0f, 0f, -0.1f), new Vector2(window.ClientWidth, window.ClientHeight), Vector4.One);
 
 			// const int toms = 25;
 			// for (int i = 0; i < toms; i++)
@@ -87,8 +86,8 @@ namespace Sandbox
 
 				e.AddComponent<TransformComponent>(Matrix4x4.CreateTranslation(i, 0f, 0f));
 
-				int color = (int)((float)i / TestEntities * 255);
-				e.AddComponent<ColorComponent>(new Color(color, color, color));
+				float color = ((float)i / TestEntities);
+				e.AddComponent<ColorComponent>(new Vector4(color, color, color, 1f));
 			}
 
 			Registry.DestroyEntity(e);
@@ -112,9 +111,9 @@ namespace Sandbox
 
 	internal struct ColorComponent
 	{
-		public Color color;
+		public Vector4 color;
 
-		public ColorComponent(Color color)
+		public ColorComponent(Vector4 color)
 		{
 			this.color = color;
 		}

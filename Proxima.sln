@@ -14,6 +14,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Vendor", "Vendor", "{2B6E1A
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ShaderCompiler", "ShaderCompiler\ShaderCompiler.csproj", "{60089EA7-8289-4185-A111-57BA62610C68}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "shaderc.net", "..\shaderc.net\shaderc.net\shaderc.net.csproj", "{EB4E6174-50F2-4637-9410-375E30C56B80}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -44,9 +46,14 @@ Global
 		{60089EA7-8289-4185-A111-57BA62610C68}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{60089EA7-8289-4185-A111-57BA62610C68}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{60089EA7-8289-4185-A111-57BA62610C68}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EB4E6174-50F2-4637-9410-375E30C56B80}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EB4E6174-50F2-4637-9410-375E30C56B80}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EB4E6174-50F2-4637-9410-375E30C56B80}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EB4E6174-50F2-4637-9410-375E30C56B80}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{3C35B91D-0460-411B-B749-3294F26BEE65} = {2B6E1ABD-7C06-472F-8003-792D721E403F}
 		{7D7DF172-8148-48F8-AF60-EB45167C31D4} = {2B6E1ABD-7C06-472F-8003-792D721E403F}
+		{EB4E6174-50F2-4637-9410-375E30C56B80} = {2B6E1ABD-7C06-472F-8003-792D721E403F}
 	EndGlobalSection
 EndGlobal

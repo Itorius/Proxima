@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Numerics;
 using System.Reflection;
-using Vortice.Mathematics;
 
 namespace Proxima
 {
@@ -17,7 +17,7 @@ namespace Proxima
 			Alpha = alpha;
 		}
 
-		public Color4 ToRGB()
+		public Vector4 ToRGB()
 		{
 			float r, g, b;
 
@@ -31,7 +31,7 @@ namespace Proxima
 				b = hue2rgb(p, q, Hue - 0.33333334f);
 			}
 
-			return new Color4(r, g, b, Alpha);
+			return new Vector4(r, g, b, Alpha);
 
 			static float hue2rgb(float p, float q, float t)
 			{
@@ -55,13 +55,13 @@ namespace Proxima
 
 		public static void ForEach<T>(this IEnumerable<T> collection, Action<T> predicate)
 		{
-			foreach (T VARIABLE in collection) predicate(VARIABLE);
+			foreach (T element in collection) predicate(element);
 		}
-		
+
 		public static void ForEach<T>(this IEnumerable<T> collection, Action<int, T> predicate)
 		{
 			int i = 0;
-			foreach (T VARIABLE in collection) predicate(i++, VARIABLE);
+			foreach (T element in collection) predicate(i++, element);
 		}
 
 		public static IEnumerable<int> IndicesOf<T>(this IEnumerable<T> collection, Func<T, bool> predicate)
@@ -75,45 +75,5 @@ namespace Proxima
 		}
 
 		public static void RemoveLast<T>(this List<T> collection) => collection.RemoveAt(collection.Count - 1);
-
-		public static double Max(this IEnumerable<double> enumerable, out int index)
-		{
-			double max = double.MinValue;
-			index = 0;
-
-			int i = 0;
-			foreach (double comparable in enumerable)
-			{
-				if (comparable > max)
-				{
-					max = comparable;
-					index = i;
-				}
-
-				i++;
-			}
-
-			return max;
-		}
-
-		public static double Min(this IEnumerable<double> enumerable, out int index)
-		{
-			double min = double.MaxValue;
-			index = 0;
-
-			int i = 0;
-			foreach (double comparable in enumerable)
-			{
-				if (comparable < min)
-				{
-					min = comparable;
-					index = i;
-				}
-
-				i++;
-			}
-
-			return min;
-		}
 	}
 }

@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFramework>net5.0</TargetFramework>
+		<TargetFramework>netcoreapp3.1</TargetFramework>
 		<LangVersion>9</LangVersion>
 		<Nullable>annotations</Nullable>
 		<OutputType>Exe</OutputType>
@@ -23,17 +23,24 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <Folder Include="Input" />
+		<Folder Include="Input" />
 	</ItemGroup>
-
+	
 	<ItemGroup>
 	  <ProjectReference Include="..\..\glfw-net\GLFW.NET\GLFW.NET.csproj" />
+	  <ProjectReference Include="..\..\shaderc.net\shaderc.net\shaderc.net.csproj" />
 	  <ProjectReference Include="..\..\Vortice.Vulkan\src\Vortice.Vulkan\Vortice.Vulkan.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>
-	  <None Update="NLog.config">
-	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-	  </None>
+	    <None Update="NLog.config">
+	        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>   
+	    </None>
+	</ItemGroup>
+
+	<ItemGroup>
+		<Content Include="lib\*.*">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</Content>
 	</ItemGroup>
 </Project>

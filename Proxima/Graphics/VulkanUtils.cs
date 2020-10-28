@@ -229,8 +229,8 @@ namespace Proxima.Graphics
 
 		public static VkPresentModeKHR SelectSwapPresentMode(IReadOnlyList<VkPresentModeKHR> presentModes)
 		{
-			return VkPresentModeKHR.Immediate;
-			
+			// return VkPresentModeKHR.Immediate;
+
 			foreach (VkPresentModeKHR presentMode in presentModes)
 			{
 				if (presentMode == VkPresentModeKHR.Mailbox) return presentMode;
@@ -243,10 +243,9 @@ namespace Proxima.Graphics
 		{
 			if (capabilities.currentExtent.width != int.MaxValue) return capabilities.currentExtent;
 
-			VkExtent2D actualExtent = new VkExtent2D(window.Size.Width, window.Size.Height);
-
-			actualExtent.width = Math.Clamp(actualExtent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
-			actualExtent.height = Math.Clamp(actualExtent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
+			VkExtent2D actualExtent = new VkExtent2D(
+				(int)Math.Clamp(window.Size.Width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width),
+				(int)Math.Clamp(window.Size.Height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height));
 
 			return actualExtent;
 		}

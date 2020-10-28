@@ -1,11 +1,6 @@
 using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
-using System.Text;
-using MonoMod.Utils;
 
 namespace Proxima
 {
@@ -21,7 +16,7 @@ namespace Proxima
 		private static IntPtr ImportResolver(string libraryName, Assembly assembly, DllImportSearchPath? searchPath)
 		{
 			IntPtr libHandle = IntPtr.Zero;
-			if (libraryName == LibraryName) NativeLibrary.TryLoad("libspirv-cross-c-shared.so", assembly, DllImportSearchPath.System32, out libHandle);
+			if (libraryName == LibraryName) NativeLibrary.TryLoad("lib/libspirv-cross-c-shared.so", assembly, DllImportSearchPath.ApplicationDirectory, out libHandle);
 			return libHandle;
 		}
 
@@ -45,15 +40,15 @@ namespace Proxima
 
 		[DllImport(LibraryName, EntryPoint = "spvc_compiler_get_entry_points")]
 		public static extern void GetEntryPoints(IntPtr compiler, out IntPtr entryPoints, out uint entryPointCount);
-		
+
 		public static unsafe ReadOnlySpan<SpirvEntryPoint> GetEntryPoints(IntPtr resources)
 		{
-			GetEntryPoints(resources,  out var list, out var size);
+			GetEntryPoints(resources, out var list, out var size);
 
 			ReadOnlySpan<SpirvEntryPoint> span = new ReadOnlySpan<SpirvEntryPoint>((void*)list, (int)size);
 			return span;
 		}
-		
+
 		[DllImport(LibraryName, EntryPoint = "spvc_resources_get_resource_list_for_type")]
 		public static extern SpirvResult GetResourceListForType(IntPtr resources, SpirvResourceType resourceType, out IntPtr resourceList, out uint resourceSize);
 
@@ -73,7 +68,7 @@ namespace Proxima
 
 		[DllImport(LibraryName, EntryPoint = "spvc_type_get_basetype")]
 		public static extern BaseType GetTypeBaseType(IntPtr type);
-		
+
 		[DllImport(LibraryName, EntryPoint = "spvc_type_get_num_member_types")]
 		public static extern uint GetMemberTypesCount(IntPtr type);
 
@@ -82,12 +77,12 @@ namespace Proxima
 
 		[DllImport(LibraryName, EntryPoint = "spvc_type_get_storage_class")]
 		public static extern StorageClass GetTypeStorageClass(IntPtr type);
-		
+
 		[DllImport(LibraryName, EntryPoint = "spvc_context_release_allocations")]
 		public static extern void ReleaseAllocations(IntPtr context);
 
 		public delegate void SPIRVCallback(IntPtr data, IntPtr error);
-		
+
 // 		internal static (ShaderStage, Dictionary<ShaderStage, string>) GetStages(string path)
 // 		{
 // 			const int OpEntryPoint = 15;

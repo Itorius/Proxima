@@ -1,6 +1,5 @@
 using System.IO;
 using StbImageSharp;
-using Vortice.Mathematics;
 using Vortice.Vulkan;
 
 namespace Proxima.Graphics

@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Numerics;
 using GLFW;
-using Vortice.Mathematics;
 using Vortice.Vulkan;
 using Exception = System.Exception;
 using Vulkan = Vortice.Vulkan.Vulkan;
@@ -291,7 +291,7 @@ namespace Proxima.Graphics
 			OnInvalidate.Invoke();
 		}
 
-		public unsafe VkCommandBuffer Begin(Color4 color, uint index)
+		public unsafe VkCommandBuffer Begin(Vector4 color, uint index)
 		{
 			VkCommandBufferAllocateInfo allocateInfo = new VkCommandBufferAllocateInfo
 			{
@@ -314,7 +314,7 @@ namespace Proxima.Graphics
 
 			VkClearValue[] clearValues = new VkClearValue[2];
 
-			clearValues[0].color = new VkClearColorValue(color.R, color.G, color.B, color.A);
+			clearValues[0].color = new VkClearColorValue(color.X, color.Y, color.Z, color.W);
 			clearValues[1].depthStencil = new VkClearDepthStencilValue(1f, 0);
 
 			VkRenderPassBeginInfo renderPassBeginInfo = new VkRenderPassBeginInfo

@@ -1,8 +1,8 @@
 using System;
+using System.Numerics;
 using GLFW;
 using NLog;
 using Proxima.Graphics;
-using Vortice.Mathematics;
 using Exception = System.Exception;
 
 namespace Proxima
@@ -12,7 +12,7 @@ namespace Proxima
 		public struct Options
 		{
 			public string Title;
-			public Size Size;
+			public Vector2 Size;
 			public bool VSync;
 		}
 
@@ -27,7 +27,7 @@ namespace Proxima
 			Glfw.WindowHint(Hint.ClientApi, ClientApi.None);
 			Log.Debug(Glfw.Version);
 
-			window = new NativeWindow(options.Size.Width, options.Size.Height, options.Title, Monitor.None, Window.None);
+			window = new NativeWindow((int)options.Size.X, (int)options.Size.Y, options.Title, Monitor.None, Window.None);
 			window.KeyPress += (sender, args) =>
 			{
 				if (args.Key == Keys.Escape) Glfw.SetWindowShouldClose(window, true);
@@ -40,7 +40,7 @@ namespace Proxima
 			#endif
 
 			GraphicsDevice.Initialize();
-			
+
 			AssetManager.Initialize(GraphicsDevice);
 			Renderer2D.Initialize(GraphicsDevice);
 
@@ -88,12 +88,12 @@ namespace Proxima
 				Time.DeltaUpdateTime = (float)diff.TotalSeconds;
 				Time.TotalUpdateTime += Time.DeltaUpdateTime;
 
-				window.Title = $"Sandbox ({1 / (Time.DeltaUpdateTime):F1} FPS)";
-				
+				window.Title = $"Sandbox ({1 / Time.DeltaUpdateTime:F1} FPS)";
+
 				Glfw.PollEvents();
 
 				GraphicsDevice.BeginFrame();
-				
+
 				OnUpdate();
 				OnRender();
 
@@ -101,7 +101,7 @@ namespace Proxima
 			}
 
 			OnClose();
-			
+
 			Cleanup();
 		}
 	}

@@ -10,7 +10,6 @@ namespace Proxima.Graphics
 		private VkPipelineLayout PipelineLayout;
 		private VkPipeline Pipeline;
 		private VkDescriptorSetLayout DescriptorSetLayout;
-		private List<UniformBuffer[]> UniformBuffers;
 		private VkDescriptorPool DescriptorPool;
 		private VkDescriptorSet[] DescriptorSets;
 
@@ -35,6 +34,7 @@ namespace Proxima.Graphics
 			Create();
 		}
 
+		private List<UniformBuffer[]> UniformBuffers;
 		private List<VertexBuffer> vertexBuffers = new List<VertexBuffer>();
 		private Dictionary<uint, Type> uniformBufferTypes = new Dictionary<uint, Type>();
 		private Dictionary<uint, Texture2D> textures = new Dictionary<uint, Texture2D>();
@@ -78,6 +78,7 @@ namespace Proxima.Graphics
 
 		private unsafe void CreateDescriptorSetLayout()
 		{
+			#region Create descriptor set layout
 			List<VkDescriptorSetLayoutBinding> bindings = new List<VkDescriptorSetLayoutBinding>();
 
 			foreach (ReflectionData.Ubo ubo in shader.ReflectionData.UBOs)
@@ -110,16 +111,14 @@ namespace Proxima.Graphics
 			fixed (VkDescriptorSetLayoutBinding* ptr = bindings.GetInternalArray()) layoutCreateInfo.pBindings = ptr;
 
 			Vulkan.vkCreateDescriptorSetLayout(graphicsDevice.LogicalDevice, &layoutCreateInfo, null, out DescriptorSetLayout).CheckResult();
+			#endregion
 
-			List<VkDescriptorPoolSize> poolSizes = new List<VkDescriptorPoolSize>();
-			foreach (VkDescriptorType type in bindings.Select(binding => binding.descriptorType))
+			#region Create descriptor pool
+			List<VkDescriptorPoolSize> poolSizes = bindings.Select(binding => new VkDescriptorPoolSize
 			{
-				poolSizes.Add(new VkDescriptorPoolSize
-				{
-					type = type,
-					descriptorCount = graphicsDevice.Swapchain.Length
-				});
-			}
+				type = binding.descriptorType,
+				descriptorCount = graphicsDevice.Swapchain.Length
+			}).ToList();
 
 			VkDescriptorPoolCreateInfo poolCreateInfo = new VkDescriptorPoolCreateInfo
 			{
@@ -130,10 +129,12 @@ namespace Proxima.Graphics
 			fixed (VkDescriptorPoolSize* ptr = poolSizes.GetInternalArray()) poolCreateInfo.pPoolSizes = ptr;
 
 			Vulkan.vkCreateDescriptorPool(graphicsDevice.LogicalDevice, &poolCreateInfo, null, out DescriptorPool).CheckResult();
+			#endregion
 		}
 
 		private unsafe void CreateDescriptorSets()
 		{
+			#region Allocate sets
 			VkDescriptorSetLayout[] layouts = Enumerable.Repeat(DescriptorSetLayout, (int)graphicsDevice.Swapchain.Length).ToArray();
 
 			VkDescriptorSetAllocateInfo allocateInfo = new VkDescriptorSetAllocateInfo
@@ -146,24 +147,23 @@ namespace Proxima.Graphics
 
 			DescriptorSets = new VkDescriptorSet[graphicsDevice.Swapchain.Length];
 			fixed (VkDescriptorSet* ptr = DescriptorSets) Vulkan.vkAllocateDescriptorSets(graphicsDevice.LogicalDevice, &allocateInfo, ptr).CheckResult();
+			#endregion
 
+			#region Update sets
 			for (int i = 0; i < DescriptorSets.Length; i++)
 			{
+				int i1 = i;
 				ref var descriptorSet = ref DescriptorSets[i];
 
 				VkDescriptorBufferInfo[] bufferInfos = new VkDescriptorBufferInfo[UniformBuffers.Count];
-				for (int j = 0; j < bufferInfos.Length; j++)
+				uniformBufferTypes.ForEach((j, pair) => bufferInfos[j] = new VkDescriptorBufferInfo
 				{
-					bufferInfos[j] = new VkDescriptorBufferInfo
-					{
-						buffer = (VkBuffer)UniformBuffers[j][i],
-						offset = 0,
-						range = UniformBuffers[j][i].Size
-					};
-				}
+					buffer = (VkBuffer)UniformBuffers[j][i1],
+					offset = 0,
+					range = UniformBuffers[j][i1].Size
+				});
 
 				VkDescriptorImageInfo[] imageInfos = new VkDescriptorImageInfo[textures.Count];
-
 				textures.ForEach((i, pair) => imageInfos[i] = new VkDescriptorImageInfo
 				{
 					imageLayout = VkImageLayout.ShaderReadOnlyOptimal,
@@ -213,6 +213,7 @@ namespace Proxima.Graphics
 
 				fixed (VkWriteDescriptorSet* ptr = writeDescriptorSets.GetInternalArray()) Vulkan.vkUpdateDescriptorSets(graphicsDevice.LogicalDevice, (uint)writeDescriptorSets.Count, ptr, 0, null);
 			}
+			#endregion
 		}
 
 		private unsafe void CreateGraphicsPipeline()

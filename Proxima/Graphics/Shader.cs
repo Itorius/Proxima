@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using shaderc;
 using Vortice.Vulkan;
 
 namespace Proxima.Graphics
@@ -120,6 +121,103 @@ namespace Proxima.Graphics
 			ProcessShader(path);
 		}
 
+		internal unsafe Shader(GraphicsDevice graphicsDevice, string vertexPath, string fragmentPath) : base(graphicsDevice)
+		{
+			shaderModules = new List<VkShaderModule>();
+			Stages = new List<VkPipelineShaderStageCreateInfo>();
+			ReflectionData = new ReflectionData();
+
+			using Compiler comp = new Compiler(new Options { SourceLanguage = SourceLanguage.Glsl });
+			using (Result res = comp.Compile(vertexPath, ShaderKind.VertexShader))
+			{
+				VkShaderModuleCreateInfo createInfo = new VkShaderModuleCreateInfo
+				{
+					sType = VkStructureType.ShaderModuleCreateInfo,
+					codeSize = new VkPointerSize(res.CodeLength),
+					pCode = (uint*)res.CodePointer.ToPointer()
+				};
+
+				Vulkan.vkCreateShaderModule(graphicsDevice.LogicalDevice, &createInfo, null, out VkShaderModule module).CheckResult();
+				shaderModules.Add(module);
+			}
+
+			using (Result res = comp.Compile(fragmentPath, ShaderKind.FragmentShader))
+			{
+				VkShaderModuleCreateInfo createInfo = new VkShaderModuleCreateInfo
+				{
+					sType = VkStructureType.ShaderModuleCreateInfo,
+					codeSize = new VkPointerSize(res.CodeLength),
+					pCode = (uint*)res.CodePointer.ToPointer()
+				};
+
+				Vulkan.vkCreateShaderModule(graphicsDevice.LogicalDevice, &createInfo, null, out VkShaderModule module).CheckResult();
+				shaderModules.Add(module);
+			}
+
+			using Stream stream = File.OpenRead($"{Path.GetDirectoryName(vertexPath)}/{Path.GetFileNameWithoutExtension(vertexPath)}.pxshader");
+			using BinaryReader reader = new BinaryReader(stream);
+
+			int i = 0;
+			while (stream.Position != stream.Length)
+			{
+				string stage = reader.ReadString();
+				VkShaderStageFlags vkStage = stage switch
+				{
+					"vertex" => VkShaderStageFlags.Vertex,
+					"fragment" => VkShaderStageFlags.Fragment,
+					_ => throw new Exception("Unsupported stage " + stage)
+				};
+
+				string reflectionDataStr = reader.ReadString();
+				var reflectionData = JsonSerializer.Deserialize<ReflectionData>(reflectionDataStr);
+
+				uint size = reader.ReadUInt32();
+				byte[] data = reader.ReadBytes((int)size);
+
+				// var shaderModule = CreateShaderModule(graphicsDevice.LogicalDevice, data);
+				// shaderModules.Add(shaderModule);
+
+				if (reflectionData != null)
+				{
+					ReflectionData.UBOs.AddRange(reflectionData.UBOs.Select(ubo =>
+					{
+						ubo.Stage = vkStage;
+						return ubo;
+					}));
+
+					ReflectionData.Textures.AddRange(reflectionData.Textures.Select(texture =>
+					{
+						texture.Stage = vkStage;
+						return texture;
+					}));
+
+					ReflectionData.Inputs.AddRange(reflectionData.Inputs.Select(input =>
+					{
+						input.Stage = vkStage;
+						return input;
+					}));
+
+					ReflectionData.Outputs.AddRange(reflectionData.Outputs.Select(output =>
+					{
+						output.Stage = vkStage;
+						return output;
+					}));
+
+					foreach (ReflectionData.EntryPoint entryPoint in reflectionData.EntryPoints)
+					{
+						VkPipelineShaderStageCreateInfo createInfo = new VkPipelineShaderStageCreateInfo
+						{
+							sType = VkStructureType.PipelineShaderStageCreateInfo,
+							stage = EntryPointModeToStage(entryPoint.Mode),
+							module = shaderModules[i++],
+							pName = new VkString(entryPoint.Name)
+						};
+						Stages.Add(createInfo);
+					}
+				}
+			}
+		}
+
 		private void ProcessShader(string path)
 		{
 			using Stream stream = File.OpenRead(path + ".pxshader");
@@ -151,25 +249,25 @@ namespace Proxima.Graphics
 						ubo.Stage = vkStage;
 						return ubo;
 					}));
-					
+
 					ReflectionData.Textures.AddRange(reflectionData.Textures.Select(texture =>
 					{
 						texture.Stage = vkStage;
 						return texture;
 					}));
-					
+
 					ReflectionData.Inputs.AddRange(reflectionData.Inputs.Select(input =>
 					{
 						input.Stage = vkStage;
 						return input;
 					}));
-					
+
 					ReflectionData.Outputs.AddRange(reflectionData.Outputs.Select(output =>
 					{
 						output.Stage = vkStage;
 						return output;
 					}));
-					
+
 					foreach (ReflectionData.EntryPoint entryPoint in reflectionData.EntryPoints)
 					{
 						VkPipelineShaderStageCreateInfo createInfo = new VkPipelineShaderStageCreateInfo
