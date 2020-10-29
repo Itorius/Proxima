@@ -79,7 +79,7 @@ namespace Proxima
 		BACKEND_INT_MAX = 0x7fffffff
 	}
 
-	internal enum SpirvDecoration
+	public enum SpirvDecoration
 	{
 		RelaxedPrecision = 0,
 		SpecId = 1,
@@ -176,9 +176,21 @@ namespace Proxima
 		MissNV = 5317,
 		CallableKHR = 5318,
 		CallableNV = 5318,
-		Max = 0x7fffffff,
+		Max = 0x7fffffff
 	}
-	
+
+	public enum SpirvDim
+	{
+		SpvDim1D = 0,
+		SpvDim2D = 1,
+		SpvDim3D = 2,
+		SpvDimCube = 3,
+		SpvDimRect = 4,
+		SpvDimBuffer = 5,
+		SpvDimSubpassData = 6,
+		SpvDimMax = 0x7fffffff
+	}
+
 	public enum BaseType
 	{
 		Unknown,
@@ -207,8 +219,9 @@ namespace Proxima
 		ControlPointArray,
 		Char
 	}
-	
-	public enum StorageClass {
+
+	public enum StorageClass
+	{
 		StorageClassUniformConstant = 0,
 		StorageClassInput = 1,
 		StorageClassUniform = 2,
@@ -236,6 +249,6 @@ namespace Proxima
 		StorageClassShaderRecordBufferNV = 5343,
 		StorageClassPhysicalStorageBuffer = 5349,
 		StorageClassPhysicalStorageBufferEXT = 5349,
-		StorageClassMax = 0x7fffffff,
+		StorageClassMax = 0x7fffffff
 	}
 }

@@ -56,9 +56,10 @@ float distanceToMandelbrot( in vec2 c )
 
 void main() {
 	vec2 uv = inUV;
-	uv = settings.u_Area.xy + (uv - 0.5) * settings.u_Area.zw;
+	uv = settings.u_Area.xy + (uv - 0.5) * (1.0 / settings.u_Area.zw);
 	uv = rotate(uv, settings.u_Area.xy, settings.u_Angle);
-
+	vec2 poop = uv;
+	
 	uv.x = abs(uv.x);
 	uv.y = abs(uv.y);
 
@@ -67,4 +68,5 @@ void main() {
 	d = clamp(pow(4.0 * d / settings.u_Area.z, 0.2), 0.0, 1.0);
 
 	outColor = texture(texSampler, d);
+	outColor = vec4(uv, 0.0, 1.0);
 }

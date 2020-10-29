@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Proxima.Graphics;
@@ -8,7 +7,7 @@ namespace Proxima
 {
 	public static partial class Renderer2D
 	{
-		private struct Vertex
+		internal struct Vertex
 		{
 			public Vector3 Position;
 			public Vector4 Color;
@@ -64,16 +63,18 @@ namespace Proxima
 
 		private static List<Vertex> vertices = new List<Vertex>();
 		private static List<uint> indices = new List<uint>();
-		private static VertexBuffer<Vertex> VertexBuffer;
+		internal static VertexBuffer<Vertex> VertexBuffer;
 		private static IndexBuffer<uint> IndexBuffer;
 		private static Shader defaultShader;
 		private static Texture2D cat;
-		private static Texture1D gradient;
+		public static Texture1D gradient;
 		private static Texture2D tom;
+		public static Texture2D PlaceholderTexture;
+		public static Texture1D PlaceholderTexture1D;
 		
 		public const int MaxQuads = 1000;
 
-		private struct k
+		internal struct k
 		{
 			public Matrix4x4 m;
 		}
@@ -83,8 +84,7 @@ namespace Proxima
 			gd = graphicsDevice;
 			gd.OnInvalidate += () => GraphicsPipelines.ForEach(pair => pair.Value.Invalidate());
 
-			// defaultShader = AssetManager.LoadShader("Assets/texture");
-			defaultShader = new Shader(gd, "Assets/Renderer2D.vert", "Assets/texture.frag");
+			defaultShader = AssetManager.LoadShader("texture", "Assets/Renderer2D.vert", "Assets/texture.frag");
 
 			VertexBuffer = new VertexBuffer<Vertex>(gd, MaxQuads * 4);
 			VertexBuffer.SetVertexInputBindingDescription(Vertex.GetBindingDescription());
@@ -92,9 +92,11 @@ namespace Proxima
 
 			IndexBuffer = new IndexBuffer<uint>(gd, MaxQuads * 6);
 
-			cat = AssetManager.LoadTexture("Assets/Cat.png");
+			cat = AssetManager.LoadTexture2D("Assets/Cat.png");
 			gradient = AssetManager.LoadTexture1D("Assets/gradient.png");
-			tom = AssetManager.LoadTexture("Assets/Tom.png");
+			tom = AssetManager.LoadTexture2D("Assets/Tom.png");
+			PlaceholderTexture = AssetManager.LoadTexture2D("Assets/Placeholder.png");
+			PlaceholderTexture1D = AssetManager.LoadTexture1D("Assets/Placeholder1D.png");
 			
 			GraphicsPipelines = new Dictionary<Shader, GraphicsPipeline>
 			{
@@ -114,28 +116,6 @@ namespace Proxima
 
 		private static Shader ActiveShader;
 
-		// public static void Begin(Matrix4x4 camera, Vector4 color, Shader? shader = null)
-		// {
-		// 	ChangeShader(shader);
-		//
-		// 	UniformBufferObject ubo = new UniformBufferObject
-		// 	{
-		// 		Camera = camera
-		// 	};
-		//
-		// 	// ubo.Projection = Matrix4x4.CreatePerspectiveFieldOfView(MathHelper.ToRadians(45f), SwapchainExtent.Width / (float)SwapchainExtent.Height, 0.1f, 100f);
-		// 	// ubo.Projection.M22 *= -1;
-		//
-		// 	GraphicsPipelines[ActiveShader].GetBuffer<UniformBufferObject>().SetData(ubo);
-		// 	GraphicsPipelines[ActiveShader].GetBuffer<k>().SetData(new k
-		// 	{
-		// 		m = Matrix4x4.CreateTranslation(50f, 0f, 0f)
-		// 	});
-		//
-		// 	buffer = gd.Begin(color, gd.CurrentFrameIndex);
-		// 	GraphicsPipelines[ActiveShader].Bind(buffer);
-		// }
-
 		public struct Data
 		{
 			public Vector4 u_Area;
@@ -144,6 +124,22 @@ namespace Proxima
 			public float u_Time;
 		}
 
+		public static void Begin(Matrix4x4 camera, Vector4 color, Material material)
+		{
+			ActiveShader = material.shader;
+			GraphicsPipelines.TryAdd(material.shader, material.pipeline);
+			
+			UniformBufferObject ubo = new UniformBufferObject
+			{
+				Camera = camera
+			};
+
+			material.pipeline.GetBuffer<UniformBufferObject>().SetData(ubo);
+			
+			buffer = gd.Begin(color, gd.CurrentFrameIndex);
+			material.pipeline.Bind(buffer);
+		}
+		
 		private static void ChangeShader(Shader? shader)
 		{
 			if (shader != null)
@@ -210,11 +206,9 @@ namespace Proxima
 			Vulkan.vkDeviceWaitIdle(gd.LogicalDevice);
 
 			GraphicsPipelines.ForEach(pair => pair.Value.Dispose());
-			
+
 			VertexBuffer.Dispose();
 			IndexBuffer.Dispose();
-
-			defaultShader.Dispose();
 		}
 	}
 }

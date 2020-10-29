@@ -78,61 +78,15 @@ namespace Proxima
 		[DllImport(LibraryName, EntryPoint = "spvc_type_get_storage_class")]
 		public static extern StorageClass GetTypeStorageClass(IntPtr type);
 
+		[DllImport(LibraryName, EntryPoint = "spvc_compiler_get_name")]
+		public static extern IntPtr GetName(IntPtr compiler, ulong id);
+
+		[DllImport(LibraryName, EntryPoint = "spvc_type_get_image_dimension")]
+		public static extern SpirvDim GetImageDimension(IntPtr compiler, ulong id);
+		
 		[DllImport(LibraryName, EntryPoint = "spvc_context_release_allocations")]
 		public static extern void ReleaseAllocations(IntPtr context);
 
 		public delegate void SPIRVCallback(IntPtr data, IntPtr error);
-
-// 		internal static (ShaderStage, Dictionary<ShaderStage, string>) GetStages(string path)
-// 		{
-// 			const int OpEntryPoint = 15;
-//
-// 			ShaderStage shaderStages = ShaderStage.None;
-// 			Dictionary<ShaderStage, string> entryPoints = new Dictionary<ShaderStage, string>();
-// 			
-// 			using BinaryReader stream = new BinaryReader(File.OpenRead(path), Encoding.UTF8);
-//
-// // Parse SPIR-V data
-// 			Debug.Assert(stream.ReadInt32() == 0x07230203);
-// 			int version = stream.ReadInt32();
-// 			int genmagnum = stream.ReadInt32();
-// 			int bound = stream.ReadInt32();
-// 			int reserved = stream.ReadInt32();
-//
-// // Instruction stream
-// 			while (stream.BaseStream.Position < stream.BaseStream.Length)
-// 			{
-// 				long pos = stream.BaseStream.Position;
-// 				uint bytes = stream.ReadUInt32();
-// 				int opcode = (int)bytes & 0xffff;
-// 				int wordcount = (int)(bytes >> 16) & 0xffff;
-// 				if (opcode == OpEntryPoint)
-// 				{
-// 					int executionModel = stream.ReadInt32();
-// 					Debug.Assert(executionModel >= 0);
-// 					if (executionModel < 6)
-// 					{
-// 						int entryPointID = stream.ReadInt32(); // entry point
-//
-// 						ShaderStage currentStage = executionModel switch
-// 						{
-// 							0 => ShaderStage.Vertex,
-// 							1 => ShaderStage.TessellationControl,
-// 							2 => ShaderStage.TessellationEvaluation,
-// 							3 => ShaderStage.Geometry,
-// 							4 => ShaderStage.Fragment,
-// 							5 => ShaderStage.GLCompute,
-// 						};
-// 						shaderStages |= currentStage;
-// 						
-// 						entryPoints.Add(currentStage,stream.ReadNullTerminatedString() );
-// 					}
-// 				}
-//
-// 				stream.BaseStream.Seek(pos + wordcount * 4, SeekOrigin.Begin);
-// 			}
-//
-// 			return (shaderStages, entryPoints);
-// 		}
 	}
 }

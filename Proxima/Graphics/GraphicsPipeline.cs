@@ -13,6 +13,20 @@ namespace Proxima.Graphics
 		private VkDescriptorPool DescriptorPool;
 		private VkDescriptorSet[] DescriptorSets;
 
+		public UniformBuffer GetBuffer(uint binding)
+		{
+			foreach (UniformBuffer[] buffers in UniformBuffers)
+			{
+				var elementType = buffers[0].GetType().GetGenericArguments()[0];
+				if (elementType == uniformBufferTypes[binding])
+				{
+					return buffers[graphicsDevice.CurrentFrameIndex];
+				}
+			}
+
+			return null;
+		}
+
 		public UniformBuffer<T> GetBuffer<T>() where T : unmanaged
 		{
 			foreach (UniformBuffer[] buffers in UniformBuffers)
@@ -37,7 +51,7 @@ namespace Proxima.Graphics
 		private List<UniformBuffer[]> UniformBuffers;
 		private List<VertexBuffer> vertexBuffers = new List<VertexBuffer>();
 		private Dictionary<uint, Type> uniformBufferTypes = new Dictionary<uint, Type>();
-		private Dictionary<uint, Texture> textures = new Dictionary<uint, Texture>();
+		public Dictionary<uint, Texture> textures = new Dictionary<uint, Texture>();
 		private Shader shader;
 
 		public void SetShader(Shader shader)
@@ -149,7 +163,11 @@ namespace Proxima.Graphics
 			fixed (VkDescriptorSet* ptr = DescriptorSets) Vulkan.vkAllocateDescriptorSets(graphicsDevice.LogicalDevice, &allocateInfo, ptr).CheckResult();
 			#endregion
 
-			#region Update sets
+			UpdateDescriptorSets();
+		}
+
+		public unsafe void UpdateDescriptorSets()
+		{
 			for (int i = 0; i < DescriptorSets.Length; i++)
 			{
 				int i1 = i;
@@ -213,7 +231,6 @@ namespace Proxima.Graphics
 
 				fixed (VkWriteDescriptorSet* ptr = writeDescriptorSets.GetInternalArray()) Vulkan.vkUpdateDescriptorSets(graphicsDevice.LogicalDevice, (uint)writeDescriptorSets.Count, ptr, 0, null);
 			}
-			#endregion
 		}
 
 		private unsafe void CreateGraphicsPipeline()

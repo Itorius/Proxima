@@ -12,6 +12,10 @@ namespace Proxima
 		public uint base_type_id;
 		public uint type_id;
 		private IntPtr name;
+
+		public string GetName(IntPtr compiler) => Marshal.PtrToStringAuto(SPIRV.GetName(compiler, ID)) ?? "unknown";
+
+		public uint GetDecoration(IntPtr compiler, SpirvDecoration decoration) => SPIRV.GetDecoration(compiler, ID, decoration);
 	}
 
 	public struct SpirvEntryPoint

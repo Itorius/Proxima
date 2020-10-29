@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.IO;
 using Proxima.Graphics;
 using Vortice.Vulkan;
 
@@ -32,6 +33,15 @@ namespace Proxima
 			return shader;
 		}
 		
+		public static Shader LoadShader(string name, string vertexPath, string fragmentPath)
+		{
+			if (shaderCache.TryGetValue(name, out Shader shader)) return shader;
+
+			shader = new Shader(gd, vertexPath, fragmentPath);
+			shaderCache.Add(name, shader);
+			return shader;
+		}
+		
 		public static Texture1D LoadTexture1D(string path)
 		{
 			if (textureCache.TryGetValue(path, out Texture texture)) return (Texture1D)texture;
@@ -41,7 +51,7 @@ namespace Proxima
 			return (Texture1D)texture;
 		}
 
-		public static Texture2D LoadTexture(string path)
+		public static Texture2D LoadTexture2D(string path)
 		{
 			if (textureCache.TryGetValue(path, out Texture texture)) return (Texture2D)texture;
 

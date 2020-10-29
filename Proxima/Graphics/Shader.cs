@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using shaderc;
@@ -173,20 +174,25 @@ namespace Proxima.Graphics
 				{
 					ReflectionData.UBOs.Add(new ReflectionData.Ubo
 					{
-						Binding = SPIRV.GetDecoration(compiler, buffer.ID, SpirvDecoration.Binding),
-						Set = SPIRV.GetDecoration(compiler, buffer.ID, SpirvDecoration.DescriptorSet),
-						Stage = stage
+						Binding = buffer.GetDecoration(compiler, SpirvDecoration.Binding),
+						Set = buffer.GetDecoration(compiler, SpirvDecoration.DescriptorSet),
+						Stage = stage,
+						Name = buffer.GetName(compiler),
 					});
 				}
 
 				var textures = SPIRV.GetResourceListForType(resources, SpirvResourceType.SampledImage);
 				foreach (SpirvReflectedResource buffer in textures)
 				{
+					SpirvDim dim = SPIRV.GetImageDimension(compiler, buffer.type_id);
+
 					ReflectionData.Textures.Add(new ReflectionData.Texture
 					{
-						Binding = SPIRV.GetDecoration(compiler, buffer.ID, SpirvDecoration.Binding),
-						Set = SPIRV.GetDecoration(compiler, buffer.ID, SpirvDecoration.DescriptorSet),
-						Stage = stage
+						Binding = buffer.GetDecoration(compiler, SpirvDecoration.Binding),
+						Set = buffer.GetDecoration(compiler, SpirvDecoration.DescriptorSet),
+						Stage = stage,
+						Name = buffer.GetName(compiler),
+						Type = "sampler" + (dim == SpirvDim.SpvDim1D ? "1D" : "2D")
 					});
 				}
 
