@@ -1,6 +1,7 @@
 using System;
 using System.Numerics;
 using GLFW;
+using ImGuiNET;
 using NLog;
 using Proxima.Graphics;
 using Exception = System.Exception;
@@ -42,6 +43,9 @@ namespace Proxima
 			GraphicsDevice.Initialize();
 
 			AssetManager.Initialize(GraphicsDevice);
+
+			ImGuiController.Initialize(GraphicsDevice);
+
 			Renderer2D.Initialize(GraphicsDevice);
 
 			OnLoad();
@@ -50,6 +54,7 @@ namespace Proxima
 		private void Cleanup()
 		{
 			Renderer2D.Dispose();
+			ImGuiController.Dispose();
 			AssetManager.Dispose();
 			GraphicsDevice.Dispose();
 
@@ -75,7 +80,7 @@ namespace Proxima
 		{
 		}
 
-		internal void Run()
+		internal unsafe void Run()
 		{
 			DateTime old = DateTime.Now;
 
@@ -92,10 +97,30 @@ namespace Proxima
 
 				Glfw.PollEvents();
 
+				ImGuiIOPtr io = ImGui.GetIO();
+				// IM_ASSERT(io.Fonts->IsBuilt() && "Font atlas not built! It is generally built by the renderer backend. Missing call to renderer _NewFrame() function? e.g. ImGui_ImplOpenGL3_NewFrame().");
+
+				io.DisplaySize = new Vector2(window.Size.Width, window.Size.Height);
+				io.DisplayFramebufferScale = new Vector2(1f, 1f);
+
+				io.DeltaTime = Time.DeltaUpdateTime;
+
+				ImGui.NewFrame();
+				ImGui.ShowDemoWindow();
+
 				GraphicsDevice.BeginFrame();
+
+				var buffer = GraphicsDevice.Begin(new Vector4(0f, 0f, 0f, 0f), GraphicsDevice.CurrentFrameIndex);
 
 				OnUpdate();
 				OnRender();
+
+				ImGui.Render();
+				var imDrawDataPtr = ImGui.GetDrawData();
+
+				ImGuiController.ImGui_ImplVulkan_RenderDrawData(*imDrawDataPtr.NativePtr, buffer);
+
+				GraphicsDevice.End(buffer);
 
 				GraphicsDevice.EndFrame();
 			}

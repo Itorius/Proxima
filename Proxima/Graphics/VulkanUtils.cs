@@ -53,7 +53,7 @@ namespace Proxima.Graphics
 			return (buffer, bufferMemory);
 		}
 
-		private static unsafe VkCommandBuffer BeginSingleTimeCommands(GraphicsDevice graphicsDevice)
+		internal static unsafe VkCommandBuffer BeginSingleTimeCommands(GraphicsDevice graphicsDevice)
 		{
 			VkCommandBufferAllocateInfo allocateInfo = new VkCommandBufferAllocateInfo
 			{
@@ -76,7 +76,7 @@ namespace Proxima.Graphics
 			return commandBuffer;
 		}
 
-		private static unsafe void EndSingleTimeCommands(GraphicsDevice graphicsDevice, VkCommandBuffer commandBuffer)
+		internal static unsafe void EndSingleTimeCommands(GraphicsDevice graphicsDevice, VkCommandBuffer commandBuffer)
 		{
 			Vulkan.vkEndCommandBuffer(commandBuffer);
 

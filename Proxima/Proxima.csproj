@@ -28,6 +28,7 @@
 	
 	<ItemGroup>
 	  <ProjectReference Include="..\..\glfw-net\GLFW.NET\GLFW.NET.csproj" />
+	  <ProjectReference Include="..\..\ImGui.NET\src\ImGui.NET\ImGui.NET.csproj" />
 	  <ProjectReference Include="..\..\shaderc.net\shaderc.net\shaderc.net.csproj" />
 	  <ProjectReference Include="..\..\Vortice.Vulkan\src\Vortice.Vulkan\Vortice.Vulkan.csproj" />
 	</ItemGroup>
