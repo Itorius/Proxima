@@ -95,6 +95,10 @@ namespace Proxima
 			public Vector4 color;
 		}
 
+		private unsafe delegate string GetClipboardText(void* user_data);
+
+		private unsafe delegate void SetClipboardText(void* user_data, string text);
+		
 		private static GraphicsDevice gd;
 		private static VkDescriptorPool imguiPool;
 		private static List<MouseButton> pressedMouseButtons = new List<MouseButton>();
@@ -195,7 +199,7 @@ namespace Proxima
 			}
 		}
 
-		private static void ImGuiInitialization()
+		private static unsafe void ImGuiInitialization()
 		{
 			IntPtr context = ImGui.CreateContext();
 			ImGui.SetCurrentContext(context);
@@ -264,6 +268,10 @@ namespace Proxima
 			};
 
 			io.ClipboardUserData = gd.window;
+			GetClipboardText getClipboardText = (data => Glfw.GetClipboardString(*(Window*)data));
+			io.GetClipboardTextFn = Marshal.GetFunctionPointerForDelegate(getClipboardText);
+			SetClipboardText setClipboardText = (data, text) => Glfw.SetClipboardString(*(Window*)data, text);
+			io.SetClipboardTextFn = Marshal.GetFunctionPointerForDelegate(setClipboardText);
 
 			g_MouseCursors[ImGuiMouseCursor.Arrow] = Glfw.CreateStandardCursor(CursorType.Arrow);
 			g_MouseCursors[ImGuiMouseCursor.TextInput] = Glfw.CreateStandardCursor(CursorType.Beam);
