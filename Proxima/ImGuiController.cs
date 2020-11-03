@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using GLFW;
@@ -173,13 +174,36 @@ namespace Proxima
 
 			Vulkan.vkCreateDescriptorPool(graphicsDevice.LogicalDevice, &poolCreateInfo, null, out imguiPool).CheckResult();
 
+			ImGuiInitialization();
+
+			CreateDeviceResources();
+
+			VkCommandBuffer buffer = VulkanUtils.BeginSingleTimeCommands(graphicsDevice);
+			CreateFontsTexture(buffer);
+			VulkanUtils.EndSingleTimeCommands(graphicsDevice, buffer);
+
+			if (g_UploadBuffer != VkBuffer.Null)
+			{
+				Vulkan.vkDestroyBuffer(gd.LogicalDevice, g_UploadBuffer, null);
+				g_UploadBuffer = VkBuffer.Null;
+			}
+
+			if (g_UploadBufferMemory != VkDeviceMemory.Null)
+			{
+				Vulkan.vkFreeMemory(gd.LogicalDevice, g_UploadBufferMemory, null);
+				g_UploadBufferMemory = VkDeviceMemory.Null;
+			}
+		}
+
+		private static void ImGuiInitialization()
+		{
 			IntPtr context = ImGui.CreateContext();
 			ImGui.SetCurrentContext(context);
 
 			ImGuiIOPtr io = ImGui.GetIO();
 
-			io.BackendFlags |= ImGuiBackendFlags.HasMouseCursors; // We can honor GetMouseCursor() values (optional)
-			io.BackendFlags |= ImGuiBackendFlags.HasSetMousePos; // We can honor io.WantSetMousePos requests (optional, rarely used)
+			io.BackendFlags |= ImGuiBackendFlags.HasMouseCursors;
+			io.BackendFlags |= ImGuiBackendFlags.HasSetMousePos;
 			io.BackendFlags |= ImGuiBackendFlags.RendererHasVtxOffset;
 
 			io.KeyMap[(int)ImGuiKey.Tab] = (int)Keys.Tab;
@@ -220,6 +244,9 @@ namespace Proxima
 				else if (args.State == InputState.Release) io.KeysDown[(int)args.Key] = false;
 
 				io.KeyCtrl = io.KeysDown[(int)Keys.LeftControl] || io.KeysDown[(int)Keys.RightControl];
+				io.KeyShift = io.KeysDown[(int)Keys.LeftShift] || io.KeysDown[(int)Keys.RightShift];
+				io.KeyAlt = io.KeysDown[(int)Keys.LeftAlt] || io.KeysDown[(int)Keys.RightAlt];
+				io.KeySuper = io.KeysDown[(int)Keys.LeftSuper] || io.KeysDown[(int)Keys.RightSuper];
 			};
 
 			gd.window.CharacterInput += (sender, args) =>
@@ -228,81 +255,32 @@ namespace Proxima
 				io.AddInputCharacter(args.CodePoint);
 			};
 
-			CreateDeviceResources();
+			io.ClipboardUserData = gd.window;
 
-			VkCommandBuffer buffer = VulkanUtils.BeginSingleTimeCommands(graphicsDevice);
-			CreateFontsTexture(buffer);
-			VulkanUtils.EndSingleTimeCommands(graphicsDevice, buffer);
-
-			if (g_UploadBuffer != VkBuffer.Null)
-			{
-				Vulkan.vkDestroyBuffer(gd.LogicalDevice, g_UploadBuffer, null);
-				g_UploadBuffer = VkBuffer.Null;
-			}
-
-			if (g_UploadBufferMemory != VkDeviceMemory.Null)
-			{
-				Vulkan.vkFreeMemory(gd.LogicalDevice, g_UploadBufferMemory, null);
-				g_UploadBufferMemory = VkDeviceMemory.Null;
-			}
-
-			// io.SetClipboardTextFn = ImGui_ImplGlfw_SetClipboardText;
-			// io.GetClipboardTextFn = ImGui_ImplGlfw_GetClipboardText;
-			// io.ClipboardUserData = g_Window;
-
-			// Create mouse cursors
-			// (By design, on X11 cursors are user configurable and some cursors may be missing. When a cursor doesn't exist,
-			// GLFW will emit an error which will often be printed by the app, so we temporarily disable error reporting.
-			// Missing cursors will return NULL and our _UpdateMouseCursor() function will use the Arrow cursor instead.)
-			// GLFWerrorfun prev_error_callback = glfwSetErrorCallback(NULL);
 			g_MouseCursors[ImGuiMouseCursor.Arrow] = Glfw.CreateStandardCursor(CursorType.Arrow);
 			g_MouseCursors[ImGuiMouseCursor.TextInput] = Glfw.CreateStandardCursor(CursorType.Beam);
 			g_MouseCursors[ImGuiMouseCursor.ResizeNS] = Glfw.CreateStandardCursor(CursorType.ResizeVertical);
 			g_MouseCursors[ImGuiMouseCursor.ResizeEW] = Glfw.CreateStandardCursor(CursorType.ResizeHorizontal);
 			g_MouseCursors[ImGuiMouseCursor.Hand] = Glfw.CreateStandardCursor(CursorType.Hand);
-			// #if GLFW_HAS_NEW_CURSORS
+
+			// note: GLFW 3.4 only
 			g_MouseCursors[ImGuiMouseCursor.ResizeAll] = Glfw.CreateStandardCursor(CursorType.ResizeAll);
 			g_MouseCursors[ImGuiMouseCursor.ResizeNESW] = Glfw.CreateStandardCursor(CursorType.ResizeNESW);
 			g_MouseCursors[ImGuiMouseCursor.ResizeNWSE] = Glfw.CreateStandardCursor(CursorType.ResizeNWSE);
 			g_MouseCursors[ImGuiMouseCursor.NotAllowed] = Glfw.CreateStandardCursor(CursorType.NotAllowed);
 
-			// g_MouseCursors[ImGuiMouseCursor_ResizeAll] = glfwCreateStandardCursor(GLFW_RESIZE_ALL_CURSOR);
-			// g_MouseCursors[ImGuiMouseCursor_ResizeNESW] = glfwCreateStandardCursor(GLFW_RESIZE_NESW_CURSOR);
-			// g_MouseCursors[ImGuiMouseCursor_ResizeNWSE] = glfwCreateStandardCursor(GLFW_RESIZE_NWSE_CURSOR);
-			// g_MouseCursors[ImGuiMouseCursor_NotAllowed] = glfwCreateStandardCursor(GLFW_NOT_ALLOWED_CURSOR);
+			// io.SetClipboardTextFn = ImGui_ImplGlfw_SetClipboardText;
+			// io.GetClipboardTextFn = ImGui_ImplGlfw_GetClipboardText;
 
-			// #else
-			// g_MouseCursors[ImGuiMouseCursor_ResizeAll] = glfwCreateStandardCursor(GLFW_ARROW_CURSOR);
-			// g_MouseCursors[ImGuiMouseCursor_ResizeNESW] = glfwCreateStandardCursor(GLFW_ARROW_CURSOR);
-			// g_MouseCursors[ImGuiMouseCursor_ResizeNWSE] = glfwCreateStandardCursor(GLFW_ARROW_CURSOR);
-			// g_MouseCursors[ImGuiMouseCursor_NotAllowed] = glfwCreateStandardCursor(GLFW_ARROW_CURSOR);
-			// #endif
-			// glfwSetErrorCallback(prev_error_callback);
-
-			// Chain GLFW callbacks: our callbacks will call the user's previously installed callbacks, if any.
-			// g_PrevUserCallbackMousebutton = NULL;
-			// g_PrevUserCallbackScroll = NULL;
-			// g_PrevUserCallbackKey = NULL;
-			// g_PrevUserCallbackChar = NULL;
-			// if (install_callbacks)
-			// {
-			// 	g_InstalledCallbacks = true;
-			// 	g_PrevUserCallbackMousebutton = glfwSetMouseButtonCallback(window, ImGui_ImplGlfw_MouseButtonCallback);
-			// 	g_PrevUserCallbackScroll = glfwSetScrollCallback(window, ImGui_ImplGlfw_ScrollCallback);
-			// 	g_PrevUserCallbackKey = glfwSetKeyCallback(window, ImGui_ImplGlfw_KeyCallback);
-			// 	g_PrevUserCallbackChar = glfwSetCharCallback(window, ImGui_ImplGlfw_CharCallback);
-			// }
-			//
-			// g_ClientApi = client_api;
+			var font = io.Fonts.AddFontFromFileTTF("Assets/Fonts/Open_Sans/OpenSans-Regular.ttf", 17f);
+			io.Fonts.AddFontDefault(font.ConfigData);
 		}
 
 		public static void NewFrame()
 		{
 			ImGuiIOPtr io = ImGui.GetIO();
 
-			// Debug.Assert(io.Fonts.IsBuilt());
-
-			// IM_ASSERT(io.Fonts->IsBuilt() && "Font atlas not built! It is generally built by the renderer backend. Missing call to renderer _NewFrame() function? e.g. ImGui_ImplOpenGL3_NewFrame().");
+			Debug.Assert(io.Fonts.IsBuilt(), "Font atlas not built!");
 
 			io.DisplaySize = new Vector2(gd.window.Size.Width, gd.window.Size.Height);
 			io.DisplayFramebufferScale = new Vector2(1f, 1f);
@@ -322,8 +300,6 @@ namespace Proxima
 			}
 			else
 			{
-				// Show OS mouse cursor
-				// FIXME-PLATFORM: Unfocused windows seems to fail changing the mouse cursor with GLFW 3.2, but 3.3 works here.
 				Glfw.SetCursor(gd.window, g_MouseCursors.ContainsKey(imgui_cursor) ? g_MouseCursors[imgui_cursor] : g_MouseCursors[ImGuiMouseCursor.Arrow]);
 				Glfw.SetInputMode(gd.window, InputMode.Cursor, /*GLFW_CURSOR_NORMAL*/0x00034001);
 			}
