@@ -97,7 +97,6 @@ namespace Proxima
 		private static GraphicsDevice gd;
 		private static VkDescriptorPool imguiPool;
 		private static List<MouseButton> pressedMouseButtons = new List<MouseButton>();
-		private static List<Keys> pressedKeys = new List<Keys>();
 		private static Dictionary<ImGuiMouseCursor, Cursor> g_MouseCursors = new Dictionary<ImGuiMouseCursor, Cursor>();
 
 		public static unsafe void Initialize(GraphicsDevice graphicsDevice)
@@ -221,6 +220,12 @@ namespace Proxima
 				else if (args.State == InputState.Release) io.KeysDown[(int)args.Key] = false;
 
 				io.KeyCtrl = io.KeysDown[(int)Keys.LeftControl] || io.KeysDown[(int)Keys.RightControl];
+			};
+
+			gd.window.CharacterInput += (sender, args) =>
+			{
+				ImGuiIOPtr io = ImGui.GetIO();
+				io.AddInputCharacter(args.CodePoint);
 			};
 
 			CreateDeviceResources();
