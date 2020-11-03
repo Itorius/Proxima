@@ -98,6 +98,7 @@ namespace Proxima
 		private static VkDescriptorPool imguiPool;
 		private static List<MouseButton> pressedMouseButtons = new List<MouseButton>();
 		private static List<Keys> pressedKeys = new List<Keys>();
+		private static Dictionary<ImGuiMouseCursor, Cursor> g_MouseCursors = new Dictionary<ImGuiMouseCursor, Cursor>();
 
 		public static unsafe void Initialize(GraphicsDevice graphicsDevice)
 		{
@@ -182,7 +183,6 @@ namespace Proxima
 			io.BackendFlags |= ImGuiBackendFlags.HasSetMousePos; // We can honor io.WantSetMousePos requests (optional, rarely used)
 			io.BackendFlags |= ImGuiBackendFlags.RendererHasVtxOffset;
 
-			// Keyboard mapping. ImGui will use those indices to peek into the io.KeysDown[] array.
 			io.KeyMap[(int)ImGuiKey.Tab] = (int)Keys.Tab;
 			io.KeyMap[(int)ImGuiKey.LeftArrow] = (int)Keys.Left;
 			io.KeyMap[(int)ImGuiKey.RightArrow] = (int)Keys.Right;
@@ -250,16 +250,16 @@ namespace Proxima
 			// GLFW will emit an error which will often be printed by the app, so we temporarily disable error reporting.
 			// Missing cursors will return NULL and our _UpdateMouseCursor() function will use the Arrow cursor instead.)
 			// GLFWerrorfun prev_error_callback = glfwSetErrorCallback(NULL);
-			// g_MouseCursors[ImGuiMouseCursor_Arrow] = glfwCreateStandardCursor(GLFW_ARROW_CURSOR);
-			// g_MouseCursors[ImGuiMouseCursor_TextInput] = glfwCreateStandardCursor(GLFW_IBEAM_CURSOR);
-			// g_MouseCursors[ImGuiMouseCursor_ResizeNS] = glfwCreateStandardCursor(GLFW_VRESIZE_CURSOR);
-			// g_MouseCursors[ImGuiMouseCursor_ResizeEW] = glfwCreateStandardCursor(GLFW_HRESIZE_CURSOR);
-			// g_MouseCursors[ImGuiMouseCursor_Hand] = glfwCreateStandardCursor(GLFW_HAND_CURSOR);
+			g_MouseCursors[ImGuiMouseCursor.Arrow] = Glfw.CreateStandardCursor(CursorType.Arrow);
+			g_MouseCursors[ImGuiMouseCursor.TextInput] = Glfw.CreateStandardCursor(CursorType.Beam);
+			g_MouseCursors[ImGuiMouseCursor.ResizeNS] = Glfw.CreateStandardCursor(CursorType.ResizeVertical);
+			g_MouseCursors[ImGuiMouseCursor.ResizeEW] = Glfw.CreateStandardCursor(CursorType.ResizeHorizontal);
+			g_MouseCursors[ImGuiMouseCursor.Hand] = Glfw.CreateStandardCursor(CursorType.Hand);
 			// #if GLFW_HAS_NEW_CURSORS
-			//  g_MouseCursors[ImGuiMouseCursor_ResizeAll] = glfwCreateStandardCursor(GLFW_RESIZE_ALL_CURSOR);
-			//  g_MouseCursors[ImGuiMouseCursor_ResizeNESW] = glfwCreateStandardCursor(GLFW_RESIZE_NESW_CURSOR);
-			//  g_MouseCursors[ImGuiMouseCursor_ResizeNWSE] = glfwCreateStandardCursor(GLFW_RESIZE_NWSE_CURSOR);
-			//  g_MouseCursors[ImGuiMouseCursor_NotAllowed] = glfwCreateStandardCursor(GLFW_NOT_ALLOWED_CURSOR);
+			g_MouseCursors[ImGuiMouseCursor.ResizeAll] = Glfw.CreateStandardCursor(CursorType.Arrow);
+			g_MouseCursors[ImGuiMouseCursor.ResizeNESW] = Glfw.CreateStandardCursor(CursorType.Arrow);
+			g_MouseCursors[ImGuiMouseCursor.ResizeNWSE] = Glfw.CreateStandardCursor(CursorType.Arrow);
+			g_MouseCursors[ImGuiMouseCursor.NotAllowed] = Glfw.CreateStandardCursor(CursorType.Arrow);
 			// #else
 			// g_MouseCursors[ImGuiMouseCursor_ResizeAll] = glfwCreateStandardCursor(GLFW_ARROW_CURSOR);
 			// g_MouseCursors[ImGuiMouseCursor_ResizeNESW] = glfwCreateStandardCursor(GLFW_ARROW_CURSOR);
@@ -299,6 +299,23 @@ namespace Proxima
 			io.DeltaTime = Time.DeltaUpdateTime;
 
 			for (int i = 0; i < io.MouseDown.Count; i++) io.MouseDown[i] = pressedMouseButtons.Contains((MouseButton)i);
+
+			if ((io.ConfigFlags & ImGuiConfigFlags.NoMouseCursorChange) == ImGuiConfigFlags.NoMouseCursorChange || Glfw.GetInputMode(gd.window, InputMode.Cursor) == 0x00034003 /*GLFW_CURSOR_DISABLED*/)
+				return;
+
+			ImGuiMouseCursor imgui_cursor = ImGui.GetMouseCursor();
+			if (imgui_cursor == ImGuiMouseCursor.None || io.MouseDrawCursor)
+			{
+				// Hide OS mouse cursor if imgui is drawing it or if it wants no cursor
+				Glfw.SetInputMode(gd.window, InputMode.Cursor, /*cusror_hidden*/0x00034002);
+			}
+			else
+			{
+				// Show OS mouse cursor
+				// FIXME-PLATFORM: Unfocused windows seems to fail changing the mouse cursor with GLFW 3.2, but 3.3 works here.
+				Glfw.SetCursor(gd.window, g_MouseCursors.ContainsKey(imgui_cursor) ? g_MouseCursors[imgui_cursor] : g_MouseCursors[ImGuiMouseCursor.Arrow]);
+				Glfw.SetInputMode(gd.window, InputMode.Cursor, /*GLFW_CURSOR_NORMAL*/0x00034001);
+			}
 		}
 
 		private static VkSampler fontSampler;
