@@ -10,6 +10,19 @@ namespace Proxima.Graphics
 
 		public GraphicsObject(GraphicsDevice graphicsDevice) => this.graphicsDevice = graphicsDevice;
 
+		// public void SetName(string name)
+		// {
+		// 	
+		// 	var i = new VkDebugUtilsObjectNameInfoEXT
+		// 	{
+		// 		objectType = VkObjectType.ImageView,
+		// 		objectHandle = view.Handle,
+		// 		sType = VkStructureType.DebugUtilsObjectNameInfoEXT,
+		// 		pObjectName = new VkString("depthbuffer image view")
+		// 	};
+		// 	Vulkan.vkSetDebugUtilsObjectNameEXT(graphicsDevice.LogicalDevice, &i);
+		// }
+		
 		public abstract void Dispose();
 	}
 }

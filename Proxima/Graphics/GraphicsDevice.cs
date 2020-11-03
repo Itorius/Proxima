@@ -74,6 +74,7 @@ namespace Proxima.Graphics
 
 			Swapchain = new VulkanSwapchain(this);
 
+			DepthBuffer = new DepthBuffer(this, Swapchain.Extent);
 			CreateFramebuffers();
 
 			CreateSyncObjects();
@@ -92,11 +93,6 @@ namespace Proxima.Graphics
 			};
 
 			ReadOnlySpan<VkExtensionProperties> extensions = Vulkan.vkEnumerateInstanceExtensionProperties();
-
-			foreach (VkExtensionProperties properties in extensions)
-			{
-				Log.Debug(properties.GetExtensionName());
-			}
 
 			using VkStringArray vkInstanceExtensions = VulkanUtils.GetRequiredExtensions(ValidationEnabled);
 
@@ -209,8 +205,6 @@ namespace Proxima.Graphics
 
 		private unsafe void CreateFramebuffers()
 		{
-			DepthBuffer = new DepthBuffer(this, Swapchain.Extent);
-
 			Framebuffers = new VkFramebuffer[Swapchain.Length];
 
 			for (int i = 0; i < Swapchain.Length; i++)
@@ -279,9 +273,10 @@ namespace Proxima.Graphics
 			Swapchain.Invalidate();
 			RenderPass.Invalidate();
 
+			foreach (VkFramebuffer framebuffer in Framebuffers) Vulkan.vkDestroyFramebuffer(LogicalDevice, framebuffer, null);
+
 			DepthBuffer.Invalidate(Swapchain.Extent);
 
-			foreach (VkFramebuffer framebuffer in Framebuffers) Vulkan.vkDestroyFramebuffer(LogicalDevice, framebuffer, null);
 			CreateFramebuffers();
 
 			OnInvalidate.Invoke();
@@ -419,12 +414,11 @@ namespace Proxima.Graphics
 		{
 			Vulkan.vkDeviceWaitIdle(LogicalDevice);
 
-			DepthBuffer.Dispose();
-
 			foreach (VkFramebuffer framebuffer in Framebuffers) Vulkan.vkDestroyFramebuffer(LogicalDevice, framebuffer, null);
 
 			RenderPass.Dispose();
 			Swapchain.Dispose();
+			DepthBuffer.Dispose();
 
 			for (int i = 0; i < MaxFramesInFlight; i++)
 			{

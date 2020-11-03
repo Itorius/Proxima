@@ -88,13 +88,6 @@ namespace Proxima
 			0x00010038
 		};
 
-		private struct ImGuiVert
-		{
-			public Vector2 position;
-			public Vector2 uv;
-			public Vector4 color;
-		}
-
 		private unsafe delegate string GetClipboardText(void* user_data);
 
 		private unsafe delegate void SetClipboardText(void* user_data, string text);
