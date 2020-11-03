@@ -237,6 +237,14 @@ namespace Proxima
 				else if (args.Action == InputState.Release) pressedMouseButtons.Remove(args.Button);
 			};
 
+			gd.window.MouseScroll += (sender, args) =>
+			{
+				ImGuiIOPtr io = ImGui.GetIO();
+
+				io.MouseWheel += (float)args.Y;
+				io.MouseWheelH += (float)args.X;
+			};
+			
 			gd.window.KeyAction += (sender, args) =>
 			{
 				ImGuiIOPtr io = ImGui.GetIO();
