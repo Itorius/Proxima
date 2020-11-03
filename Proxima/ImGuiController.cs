@@ -753,7 +753,7 @@ namespace Proxima
 
 				// Upload vertex/index data into a single contiguous GPU buffer
 				ImDrawVert* vtx_dst;
-				uint* idx_dst;
+				ushort* idx_dst;
 
 				Vulkan.vkMapMemory(gd.LogicalDevice, rb.VertexBufferMemory, 0, vertex_size, 0, &vtx_dst);
 				Vulkan.vkMapMemory(gd.LogicalDevice, rb.IndexBufferMemory, 0, index_size, 0, &idx_dst);
