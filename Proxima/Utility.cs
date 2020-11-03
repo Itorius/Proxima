@@ -60,6 +60,15 @@ namespace Proxima
 
 	public static class Utility
 	{
+		public static unsafe void MemoryCopy(void* src, void* dst, ulong size) => Buffer.MemoryCopy(src, dst, size, size);
+
+		public static unsafe void MemoryCopy(IntPtr src, void* dst, ulong size) => Buffer.MemoryCopy(src.ToPointer(), dst, size, size);
+
+		public static unsafe void MemoryCopy(byte[] src, void* dst, ulong size)
+		{
+			fixed (void* ptr = src) Buffer.MemoryCopy(ptr, dst, size, size);
+		}
+
 		public static T[] GetInternalArray<T>(this List<T> list)
 		{
 			FieldInfo fieldInfo = list.GetType().GetField("_items", BindingFlags.NonPublic | BindingFlags.Instance);

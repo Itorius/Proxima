@@ -8,7 +8,7 @@ namespace Proxima
 	public static class AssetManager
 	{
 		private static GraphicsDevice gd;
-		private static Dictionary<string, Shader> shaderCache = new Dictionary<string, Shader>();
+		internal static Dictionary<string, Shader> shaderCache = new Dictionary<string, Shader>();
 		internal static Dictionary<string, Texture> textureCache = new Dictionary<string, Texture>();
 
 		internal static void Initialize(GraphicsDevice graphicsDevice)

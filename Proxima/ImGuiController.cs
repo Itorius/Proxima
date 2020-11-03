@@ -21,17 +21,38 @@ namespace Proxima
 			Disabled = 0x00034003
 		}
 
-		private unsafe delegate string GetClipboardText(void* user_data);
+		private struct FrameRenderBuffers
+		{
+			internal VertexBuffer<ImDrawVert>? VertexBuffer;
+			internal IndexBuffer<ushort>? IndexBuffer;
+		}
 
-		private unsafe delegate void SetClipboardText(void* user_data, string text);
+		private struct WindowRenderBuffers
+		{
+			internal uint Index;
+			internal uint Count;
+			internal FrameRenderBuffers[] FrameRenderBuffers;
+		}
+
+		private static List<MouseButton> pressedMouseButtons = new List<MouseButton>();
+		private static Dictionary<ImGuiMouseCursor, Cursor> mouseCursors = new Dictionary<ImGuiMouseCursor, Cursor>();
 
 		private static GraphicsDevice gd;
 
-		private static VkDescriptorPool imguiPool;
+		private static Shader imguiShader;
+		private static Texture2D fontTexture;
 
-		private static List<MouseButton> pressedMouseButtons = new List<MouseButton>();
+		private static VkDescriptorPool descriptorPool;
+		private static VkDescriptorSetLayout descriptorSetLayout;
+		private static VkPipelineLayout pipelineLayout;
+		private static VkPipeline pipeline;
+		private static WindowRenderBuffers windowRenderBuffers;
 
-		private static Dictionary<ImGuiMouseCursor, Cursor> g_MouseCursors = new Dictionary<ImGuiMouseCursor, Cursor>();
+		private unsafe delegate void ImGuiUserCallback(ImDrawList* draw_list, ImDrawCmd* cmd);
+
+		private unsafe delegate string GetClipboardText(void* user_data);
+
+		private unsafe delegate void SetClipboardText(void* user_data, string text);
 
 		public static unsafe void Initialize(GraphicsDevice graphicsDevice)
 		{
@@ -105,58 +126,13 @@ namespace Proxima
 			};
 			fixed (VkDescriptorPoolSize* ptr = poolSizes) poolCreateInfo.pPoolSizes = ptr;
 
-			Vulkan.vkCreateDescriptorPool(graphicsDevice.LogicalDevice, &poolCreateInfo, null, out imguiPool).CheckResult();
+			Vulkan.vkCreateDescriptorPool(graphicsDevice.LogicalDevice, &poolCreateInfo, null, out descriptorPool).CheckResult();
 
 			ImGuiInitialization();
 
 			CreateDeviceResources();
 
-			VkCommandBuffer buffer = VulkanUtils.BeginSingleTimeCommands(graphicsDevice);
-			CreateFontsTexture(buffer);
-			VulkanUtils.EndSingleTimeCommands(graphicsDevice, buffer);
-
-			if (g_UploadBuffer != VkBuffer.Null)
-			{
-				Vulkan.vkDestroyBuffer(gd.LogicalDevice, g_UploadBuffer, null);
-				g_UploadBuffer = VkBuffer.Null;
-			}
-
-			if (g_UploadBufferMemory != VkDeviceMemory.Null)
-			{
-				Vulkan.vkFreeMemory(gd.LogicalDevice, g_UploadBufferMemory, null);
-				g_UploadBufferMemory = VkDeviceMemory.Null;
-			}
-		}
-
-		public static unsafe VkDescriptorSet ImGui_ImplVulkan_AddTexture(VkSampler sampler, VkImageView image_view, VkImageLayout image_layout)
-		{
-			VkDescriptorSet descriptor_set;
-			VkDescriptorSetAllocateInfo alloc_info = new VkDescriptorSetAllocateInfo
-			{
-				sType = VkStructureType.DescriptorSetAllocateInfo,
-				descriptorPool = imguiPool,
-				descriptorSetCount = 1
-			};
-			fixed (VkDescriptorSetLayout* ptr = &_descriptorSetLayout) alloc_info.pSetLayouts = ptr;
-			Vulkan.vkAllocateDescriptorSets(gd.LogicalDevice, &alloc_info, &descriptor_set);
-
-			VkDescriptorImageInfo desc_image = new VkDescriptorImageInfo
-			{
-				sampler = sampler,
-				imageView = image_view,
-				imageLayout = image_layout
-			};
-			VkWriteDescriptorSet write_desc = new VkWriteDescriptorSet
-			{
-				sType = VkStructureType.WriteDescriptorSet,
-				dstSet = descriptor_set,
-				descriptorCount = 1,
-				descriptorType = VkDescriptorType.CombinedImageSampler,
-				pImageInfo = &desc_image
-			};
-			Vulkan.vkUpdateDescriptorSets(gd.LogicalDevice, write_desc);
-
-			return descriptor_set;
+			CreateFontsTexture();
 		}
 
 		private static unsafe void ImGuiInitialization()
@@ -235,20 +211,51 @@ namespace Proxima
 			SetClipboardText setClipboardText = (data, text) => Glfw.SetClipboardString(*(Window*)data, text);
 			io.SetClipboardTextFn = Marshal.GetFunctionPointerForDelegate(setClipboardText);
 
-			g_MouseCursors[ImGuiMouseCursor.Arrow] = Glfw.CreateStandardCursor(CursorType.Arrow);
-			g_MouseCursors[ImGuiMouseCursor.TextInput] = Glfw.CreateStandardCursor(CursorType.Beam);
-			g_MouseCursors[ImGuiMouseCursor.ResizeNS] = Glfw.CreateStandardCursor(CursorType.ResizeVertical);
-			g_MouseCursors[ImGuiMouseCursor.ResizeEW] = Glfw.CreateStandardCursor(CursorType.ResizeHorizontal);
-			g_MouseCursors[ImGuiMouseCursor.Hand] = Glfw.CreateStandardCursor(CursorType.Hand);
+			mouseCursors[ImGuiMouseCursor.Arrow] = Glfw.CreateStandardCursor(CursorType.Arrow);
+			mouseCursors[ImGuiMouseCursor.TextInput] = Glfw.CreateStandardCursor(CursorType.Beam);
+			mouseCursors[ImGuiMouseCursor.ResizeNS] = Glfw.CreateStandardCursor(CursorType.ResizeVertical);
+			mouseCursors[ImGuiMouseCursor.ResizeEW] = Glfw.CreateStandardCursor(CursorType.ResizeHorizontal);
+			mouseCursors[ImGuiMouseCursor.Hand] = Glfw.CreateStandardCursor(CursorType.Hand);
 
 			// note: GLFW 3.4 only
-			g_MouseCursors[ImGuiMouseCursor.ResizeAll] = Glfw.CreateStandardCursor(CursorType.ResizeAll);
-			g_MouseCursors[ImGuiMouseCursor.ResizeNESW] = Glfw.CreateStandardCursor(CursorType.ResizeNESW);
-			g_MouseCursors[ImGuiMouseCursor.ResizeNWSE] = Glfw.CreateStandardCursor(CursorType.ResizeNWSE);
-			g_MouseCursors[ImGuiMouseCursor.NotAllowed] = Glfw.CreateStandardCursor(CursorType.NotAllowed);
+			mouseCursors[ImGuiMouseCursor.ResizeAll] = Glfw.CreateStandardCursor(CursorType.ResizeAll);
+			mouseCursors[ImGuiMouseCursor.ResizeNESW] = Glfw.CreateStandardCursor(CursorType.ResizeNESW);
+			mouseCursors[ImGuiMouseCursor.ResizeNWSE] = Glfw.CreateStandardCursor(CursorType.ResizeNWSE);
+			mouseCursors[ImGuiMouseCursor.NotAllowed] = Glfw.CreateStandardCursor(CursorType.NotAllowed);
 
 			var font = io.Fonts.AddFontFromFileTTF("Assets/Fonts/Open_Sans/OpenSans-Regular.ttf", 17f);
 			io.Fonts.AddFontDefault(font.ConfigData);
+		}
+
+		public static unsafe VkDescriptorSet AddTexture(VkSampler sampler, VkImageView image_view, VkImageLayout image_layout)
+		{
+			VkDescriptorSet descriptor_set;
+			VkDescriptorSetAllocateInfo alloc_info = new VkDescriptorSetAllocateInfo
+			{
+				sType = VkStructureType.DescriptorSetAllocateInfo,
+				descriptorPool = descriptorPool,
+				descriptorSetCount = 1
+			};
+			fixed (VkDescriptorSetLayout* ptr = &descriptorSetLayout) alloc_info.pSetLayouts = ptr;
+			Vulkan.vkAllocateDescriptorSets(gd.LogicalDevice, &alloc_info, &descriptor_set);
+
+			VkDescriptorImageInfo desc_image = new VkDescriptorImageInfo
+			{
+				sampler = sampler,
+				imageView = image_view,
+				imageLayout = image_layout
+			};
+			VkWriteDescriptorSet write_desc = new VkWriteDescriptorSet
+			{
+				sType = VkStructureType.WriteDescriptorSet,
+				dstSet = descriptor_set,
+				descriptorCount = 1,
+				descriptorType = VkDescriptorType.CombinedImageSampler,
+				pImageInfo = &desc_image
+			};
+			Vulkan.vkUpdateDescriptorSets(gd.LogicalDevice, write_desc);
+
+			return descriptor_set;
 		}
 
 		public static void NewFrame()
@@ -275,22 +282,13 @@ namespace Proxima
 			}
 			else
 			{
-				Glfw.SetCursor(gd.window, g_MouseCursors.ContainsKey(imgui_cursor) ? g_MouseCursors[imgui_cursor] : g_MouseCursors[ImGuiMouseCursor.Arrow]);
+				Glfw.SetCursor(gd.window, mouseCursors.ContainsKey(imgui_cursor) ? mouseCursors[imgui_cursor] : mouseCursors[ImGuiMouseCursor.Arrow]);
 				Glfw.SetInputMode(gd.window, InputMode.Cursor, (int)GlfwCursorMode.Normal);
 			}
 		}
 
-		private static VkSampler g_FontSampler;
-
-		private static VkDescriptorSetLayout _descriptorSetLayout;
-
-		private static VkPipelineLayout _pipelineLayout;
-		private static VkPipeline _pipeline;
-
 		private static void CreateDeviceResources()
 		{
-			CreateFontSampler();
-
 			CreateDescriptorSetLayout();
 
 			CreatePipelineLayout();
@@ -298,32 +296,9 @@ namespace Proxima
 			CreatePipeline();
 		}
 
-		private static Shader shader;
-
-		private static unsafe void CreateFontSampler()
-		{
-			if (g_FontSampler != VkSampler.Null) return;
-
-			VkSamplerCreateInfo info = new VkSamplerCreateInfo
-			{
-				sType = VkStructureType.SamplerCreateInfo,
-				magFilter = VkFilter.Linear,
-				minFilter = VkFilter.Linear,
-				mipmapMode = VkSamplerMipmapMode.Linear,
-				addressModeU = VkSamplerAddressMode.Repeat,
-				addressModeV = VkSamplerAddressMode.Repeat,
-				addressModeW = VkSamplerAddressMode.Repeat,
-				minLod = -1000,
-				maxLod = 1000,
-				maxAnisotropy = 1.0f
-			};
-
-			Vulkan.vkCreateSampler(gd.LogicalDevice, &info, null, out g_FontSampler).CheckResult();
-		}
-
 		private static unsafe void CreateDescriptorSetLayout()
 		{
-			if (_descriptorSetLayout != VkDescriptorSetLayout.Null) return;
+			if (descriptorSetLayout != VkDescriptorSetLayout.Null) return;
 
 			VkDescriptorSetLayoutBinding binding = new VkDescriptorSetLayoutBinding
 			{
@@ -338,12 +313,12 @@ namespace Proxima
 				bindingCount = 1,
 				pBindings = &binding
 			};
-			Vulkan.vkCreateDescriptorSetLayout(gd.LogicalDevice, &info, null, out _descriptorSetLayout).CheckResult();
+			Vulkan.vkCreateDescriptorSetLayout(gd.LogicalDevice, &info, null, out descriptorSetLayout).CheckResult();
 		}
 
 		private static unsafe void CreatePipelineLayout()
 		{
-			if (_pipelineLayout != VkPipelineLayout.Null) return;
+			if (pipelineLayout != VkPipelineLayout.Null) return;
 
 			VkPushConstantRange push_constants = new VkPushConstantRange
 			{
@@ -357,16 +332,16 @@ namespace Proxima
 				sType = VkStructureType.PipelineLayoutCreateInfo,
 				setLayoutCount = 1
 			};
-			fixed (VkDescriptorSetLayout* ptr = &_descriptorSetLayout) layout_info.pSetLayouts = ptr;
+			fixed (VkDescriptorSetLayout* ptr = &descriptorSetLayout) layout_info.pSetLayouts = ptr;
 			layout_info.pushConstantRangeCount = 1;
 			layout_info.pPushConstantRanges = &push_constants;
 
-			Vulkan.vkCreatePipelineLayout(gd.LogicalDevice, &layout_info, null, out _pipelineLayout).CheckResult();
+			Vulkan.vkCreatePipelineLayout(gd.LogicalDevice, &layout_info, null, out pipelineLayout).CheckResult();
 		}
 
 		private static unsafe void CreatePipeline()
 		{
-			shader = AssetManager.LoadShader("ImGui", "Assets/ImGui.vert", "Assets/ImGui.frag");
+			imguiShader = AssetManager.LoadShader("ImGui", "Assets/ImGui.vert", "Assets/ImGui.frag");
 
 			VkVertexInputBindingDescription binding_desc = new VkVertexInputBindingDescription
 			{
@@ -469,174 +444,27 @@ namespace Proxima
 				pDepthStencilState = &depth_info,
 				pColorBlendState = &blend_info,
 				pDynamicState = &dynamic_state,
-				layout = _pipelineLayout,
+				layout = pipelineLayout,
 				renderPass = (VkRenderPass)gd.RenderPass
 			};
-			fixed (VkPipelineShaderStageCreateInfo* ptr = shader.Stages.GetInternalArray()) info.pStages = ptr;
-			Vulkan.vkCreateGraphicsPipeline(gd.LogicalDevice, VkPipelineCache.Null, info, out _pipeline).CheckResult();
+			fixed (VkPipelineShaderStageCreateInfo* ptr = imguiShader.Stages.GetInternalArray()) info.pStages = ptr;
+			Vulkan.vkCreateGraphicsPipeline(gd.LogicalDevice, VkPipelineCache.Null, info, out pipeline).CheckResult();
 		}
 
-		private static VkImage g_FontImage;
-		private static VkDeviceMemory g_FontMemory;
-		private static VkImageView g_FontView;
-		private static VkBuffer g_UploadBuffer;
-		private static VkDeviceMemory g_UploadBufferMemory;
-
-		private static unsafe void CreateFontsTexture(VkCommandBuffer command_buffer)
+		private static void CreateFontsTexture()
 		{
 			ImGuiIOPtr io = ImGui.GetIO();
 
 			io.Fonts.GetTexDataAsRGBA32(out IntPtr pixels, out int width, out int height);
-			uint upload_size = (uint)(width * height * 4);
 
-			// Create the Image:
-			{
-				VkImageCreateInfo info = new VkImageCreateInfo
-				{
-					sType = VkStructureType.ImageCreateInfo,
-					imageType = VkImageType.Image2D,
-					format = VkFormat.R8G8B8A8UNorm,
-					extent = new VkExtent3D(width, height, 1),
-					mipLevels = 1,
-					arrayLayers = 1,
-					samples = VkSampleCountFlags.Count1,
-					tiling = VkImageTiling.Optimal,
-					usage = VkImageUsageFlags.Sampled | VkImageUsageFlags.TransferDst,
-					sharingMode = VkSharingMode.Exclusive,
-					initialLayout = VkImageLayout.Undefined
-				};
+			fontTexture = new Texture2D(gd, pixels, width, height);
 
-				Vulkan.vkCreateImage(gd.LogicalDevice, &info, null, out g_FontImage).CheckResult();
+			VkDescriptorSet font_descriptor_set = AddTexture(fontTexture.Sampler, fontTexture.View, VkImageLayout.ShaderReadOnlyOptimal);
 
-				Vulkan.vkGetImageMemoryRequirements(gd.LogicalDevice, g_FontImage, out VkMemoryRequirements req);
-				VkMemoryAllocateInfo alloc_info = new VkMemoryAllocateInfo
-				{
-					sType = VkStructureType.MemoryAllocateInfo,
-					allocationSize = req.size,
-					memoryTypeIndex = VulkanUtils.FindMemoryType(gd, req.memoryTypeBits, VkMemoryPropertyFlags.DeviceLocal)
-				};
-
-				fixed (VkDeviceMemory* ptr = &g_FontMemory) Vulkan.vkAllocateMemory(gd.LogicalDevice, &alloc_info, null, ptr).CheckResult();
-				Vulkan.vkBindImageMemory(gd.LogicalDevice, g_FontImage, g_FontMemory, 0).CheckResult();
-			}
-
-			// Create the Image View:
-			{
-				VkImageViewCreateInfo info = new VkImageViewCreateInfo
-				{
-					sType = VkStructureType.ImageViewCreateInfo,
-					image = g_FontImage,
-					viewType = VkImageViewType.Image2D,
-					format = VkFormat.R8G8B8A8UNorm,
-					subresourceRange =
-					{
-						aspectMask = VkImageAspectFlags.Color,
-						levelCount = 1,
-						layerCount = 1
-					}
-				};
-				Vulkan.vkCreateImageView(gd.LogicalDevice, &info, null, out g_FontView).CheckResult();
-			}
-
-			VkDescriptorSet font_descriptor_set = ImGui_ImplVulkan_AddTexture(g_FontSampler, g_FontView, VkImageLayout.ShaderReadOnlyOptimal);
-
-			// Create the Upload Buffer:
-			{
-				VkBufferCreateInfo buffer_info = new VkBufferCreateInfo
-				{
-					sType = VkStructureType.BufferCreateInfo,
-					size = upload_size,
-					usage = VkBufferUsageFlags.TransferSrc,
-					sharingMode = VkSharingMode.Exclusive
-				};
-				Vulkan.vkCreateBuffer(gd.LogicalDevice, &buffer_info, null, out g_UploadBuffer);
-
-				Vulkan.vkGetBufferMemoryRequirements(gd.LogicalDevice, g_UploadBuffer, out VkMemoryRequirements req);
-				VkMemoryAllocateInfo alloc_info = new VkMemoryAllocateInfo
-				{
-					sType = VkStructureType.MemoryAllocateInfo,
-					allocationSize = req.size,
-					memoryTypeIndex = VulkanUtils.FindMemoryType(gd, req.memoryTypeBits, VkMemoryPropertyFlags.HostVisible)
-				};
-
-				fixed (VkDeviceMemory* ptr = &g_UploadBufferMemory) Vulkan.vkAllocateMemory(gd.LogicalDevice, &alloc_info, null, ptr).CheckResult();
-
-				Vulkan.vkBindBufferMemory(gd.LogicalDevice, g_UploadBuffer, g_UploadBufferMemory, 0);
-			}
-
-			// Upload to Buffer:
-			{
-				void* data;
-				Vulkan.vkMapMemory(gd.LogicalDevice, g_UploadBufferMemory, 0, upload_size, 0, &data).CheckResult();
-				Buffer.MemoryCopy(pixels.ToPointer(), data, upload_size, upload_size);
-
-				VkMappedMemoryRange range = new VkMappedMemoryRange();
-				range.sType = VkStructureType.MappedMemoryRange;
-				range.memory = g_UploadBufferMemory;
-				range.size = upload_size;
-
-				Vulkan.vkFlushMappedMemoryRanges(gd.LogicalDevice, range);
-				Vulkan.vkUnmapMemory(gd.LogicalDevice, g_UploadBufferMemory);
-			}
-
-			// Copy to Image:
-			{
-				VkImageMemoryBarrier copy_barrier = new VkImageMemoryBarrier();
-				copy_barrier.sType = VkStructureType.ImageMemoryBarrier;
-				copy_barrier.dstAccessMask = VkAccessFlags.TransferWrite;
-				copy_barrier.oldLayout = VkImageLayout.Undefined;
-				copy_barrier.newLayout = VkImageLayout.TransferDstOptimal;
-				copy_barrier.srcQueueFamilyIndex = 0;
-				copy_barrier.dstQueueFamilyIndex = 0;
-				copy_barrier.image = g_FontImage;
-				copy_barrier.subresourceRange.aspectMask = VkImageAspectFlags.Color;
-				copy_barrier.subresourceRange.levelCount = 1;
-				copy_barrier.subresourceRange.layerCount = 1;
-				Vulkan.vkCmdPipelineBarrier(command_buffer, VkPipelineStageFlags.Host, VkPipelineStageFlags.Transfer, 0, 0, null, 0, null, 1, &copy_barrier);
-
-				VkBufferImageCopy region = new VkBufferImageCopy();
-				region.imageSubresource.aspectMask = VkImageAspectFlags.Color;
-				region.imageSubresource.layerCount = 1;
-				region.imageExtent = new VkExtent3D(width, height, 1);
-				Vulkan.vkCmdCopyBufferToImage(command_buffer, g_UploadBuffer, g_FontImage, VkImageLayout.TransferDstOptimal, 1, &region);
-
-				VkImageMemoryBarrier use_barrier = new VkImageMemoryBarrier();
-				use_barrier.sType = VkStructureType.ImageMemoryBarrier;
-				use_barrier.srcAccessMask = VkAccessFlags.TransferWrite;
-				use_barrier.dstAccessMask = VkAccessFlags.ShaderRead;
-				use_barrier.oldLayout = VkImageLayout.TransferDstOptimal;
-				use_barrier.newLayout = VkImageLayout.ShaderReadOnlyOptimal;
-				use_barrier.srcQueueFamilyIndex = 0;
-				use_barrier.dstQueueFamilyIndex = 0;
-				use_barrier.image = g_FontImage;
-				use_barrier.subresourceRange.aspectMask = VkImageAspectFlags.Color;
-				use_barrier.subresourceRange.levelCount = 1;
-				use_barrier.subresourceRange.layerCount = 1;
-				Vulkan.vkCmdPipelineBarrier(command_buffer, VkPipelineStageFlags.Transfer, VkPipelineStageFlags.FragmentShader, 0, 0, null, 0, null, 1, &use_barrier);
-			}
-
-			// Store our identifier
 			io.Fonts.TexID = (IntPtr)font_descriptor_set.Handle;
 		}
 
-		private struct ImGui_ImplVulkanH_FrameRenderBuffers
-		{
-			internal VertexBuffer<ImDrawVert>? VertexBuffer;
-			internal IndexBuffer<ushort>? IndexBuffer;
-		}
-
-		private struct ImGui_ImplVulkanH_WindowRenderBuffers
-		{
-			internal uint Index;
-			internal uint Count;
-			internal ImGui_ImplVulkanH_FrameRenderBuffers[] FrameRenderBuffers;
-		}
-
-		private static ImGui_ImplVulkanH_WindowRenderBuffers g_MainWindowRenderBuffers;
-
-		private unsafe delegate void ImGuiUserCallback(ImDrawList* draw_list, ImDrawCmd* cmd);
-
-		public static unsafe void ImGui_ImplVulkan_RenderDrawData(ImDrawData draw_data, VkCommandBuffer command_buffer)
+		public static unsafe void RenderDrawData(ImDrawData draw_data, VkCommandBuffer command_buffer)
 		{
 			// Avoid rendering when minimized, scale coordinates for retina displays (screen coordinates != framebuffer coordinates)
 			int fb_width = (int)(draw_data.DisplaySize.X * draw_data.FramebufferScale.X);
@@ -645,17 +473,17 @@ namespace Proxima
 				return;
 
 			// Allocate array to store enough vertex/index buffers
-			ref ImGui_ImplVulkanH_WindowRenderBuffers wrb = ref g_MainWindowRenderBuffers;
+			ref WindowRenderBuffers wrb = ref windowRenderBuffers;
 			if (wrb.FrameRenderBuffers == null)
 			{
 				wrb.Index = 0;
 				wrb.Count = 3;
-				wrb.FrameRenderBuffers = new ImGui_ImplVulkanH_FrameRenderBuffers[3];
+				wrb.FrameRenderBuffers = new FrameRenderBuffers[3];
 			}
 
 			// IM_ASSERT(wrb->Count == v->ImageCount);
 			wrb.Index = (wrb.Index + 1) % wrb.Count;
-			ref ImGui_ImplVulkanH_FrameRenderBuffers rb = ref wrb.FrameRenderBuffers[wrb.Index];
+			ref FrameRenderBuffers rb = ref wrb.FrameRenderBuffers[wrb.Index];
 
 			if (draw_data.TotalVtxCount > 0)
 			{
@@ -683,7 +511,7 @@ namespace Proxima
 			}
 
 			// Setup desired Vulkan state
-			ImGui_ImplVulkan_SetupRenderState(draw_data, _pipeline, command_buffer, rb, fb_width, fb_height);
+			SetupRenderState(draw_data, pipeline, command_buffer, rb, fb_width, fb_height);
 
 			// // Will project scissor/clipping rectangles into framebuffer space
 			Vector2 clip_off = draw_data.DisplayPos; // (0,0) unless using multi-viewports
@@ -701,7 +529,7 @@ namespace Proxima
 					ref ImDrawCmd pcmd = ref cmd_list->CmdBuffer.Ref<ImDrawCmd>(cmd_i);
 					if (pcmd.UserCallback != IntPtr.Zero)
 					{
-						if (pcmd.UserCallback == new IntPtr(-1)) ImGui_ImplVulkan_SetupRenderState(draw_data, _pipeline, command_buffer, rb, fb_width, fb_height);
+						if (pcmd.UserCallback == new IntPtr(-1)) SetupRenderState(draw_data, pipeline, command_buffer, rb, fb_width, fb_height);
 						else
 						{
 							fixed (ImDrawCmd* ptr = &pcmd) Marshal.GetDelegateForFunctionPointer<ImGuiUserCallback>(pcmd.UserCallback).Invoke(cmd_list, ptr);
@@ -727,7 +555,7 @@ namespace Proxima
 							Vulkan.vkCmdSetScissor(command_buffer, 0, 1, &scissor);
 
 							VkDescriptorSet descriptorSet = new VkDescriptorSet((ulong)pcmd.TextureId);
-							Vulkan.vkCmdBindDescriptorSets(command_buffer, VkPipelineBindPoint.Graphics, _pipelineLayout, 0, descriptorSet);
+							Vulkan.vkCmdBindDescriptorSets(command_buffer, VkPipelineBindPoint.Graphics, pipelineLayout, 0, descriptorSet);
 
 							// Draw
 							Vulkan.vkCmdDrawIndexed(command_buffer, pcmd.ElemCount, 1, (uint)(pcmd.IdxOffset + global_idx_offset), (int)(pcmd.VtxOffset + global_vtx_offset), 0);
@@ -740,7 +568,7 @@ namespace Proxima
 			}
 		}
 
-		private static unsafe void ImGui_ImplVulkan_SetupRenderState(ImDrawData draw_data, VkPipeline pipeline, VkCommandBuffer command_buffer, ImGui_ImplVulkanH_FrameRenderBuffers rb, int fb_width, int fb_height)
+		private static unsafe void SetupRenderState(ImDrawData draw_data, VkPipeline pipeline, VkCommandBuffer command_buffer, FrameRenderBuffers rb, int fb_width, int fb_height)
 		{
 			Vulkan.vkCmdBindPipeline(command_buffer, VkPipelineBindPoint.Graphics, pipeline);
 
@@ -766,8 +594,8 @@ namespace Proxima
 				float[] translate = new float[2];
 				translate[0] = -1.0f - draw_data.DisplayPos.X * scale[0];
 				translate[1] = -1.0f - draw_data.DisplayPos.Y * scale[1];
-				fixed (float* ptr = scale) Vulkan.vkCmdPushConstants(command_buffer, _pipelineLayout, VkShaderStageFlags.Vertex, sizeof(float) * 0, sizeof(float) * 2, ptr);
-				fixed (float* ptr = translate) Vulkan.vkCmdPushConstants(command_buffer, _pipelineLayout, VkShaderStageFlags.Vertex, sizeof(float) * 2, sizeof(float) * 2, ptr);
+				fixed (float* ptr = scale) Vulkan.vkCmdPushConstants(command_buffer, pipelineLayout, VkShaderStageFlags.Vertex, sizeof(float) * 0, sizeof(float) * 2, ptr);
+				fixed (float* ptr = translate) Vulkan.vkCmdPushConstants(command_buffer, pipelineLayout, VkShaderStageFlags.Vertex, sizeof(float) * 2, sizeof(float) * 2, ptr);
 			}
 		}
 
@@ -775,63 +603,41 @@ namespace Proxima
 		{
 			for (ImGuiMouseCursor i = 0; i < ImGuiMouseCursor.COUNT; i++)
 			{
-				Glfw.DestroyCursor(g_MouseCursors[i]);
-				g_MouseCursors[i] = Cursor.None;
+				Glfw.DestroyCursor(mouseCursors[i]);
+				mouseCursors[i] = Cursor.None;
 			}
 
-			for (int n = 0; n < g_MainWindowRenderBuffers.Count; n++)
+			for (int n = 0; n < windowRenderBuffers.Count; n++)
 			{
-				var buffers = g_MainWindowRenderBuffers.FrameRenderBuffers[n];
+				var buffers = windowRenderBuffers.FrameRenderBuffers[n];
 				buffers.VertexBuffer?.Dispose();
 				buffers.IndexBuffer?.Dispose();
 			}
 
-			if (g_FontView != VkImageView.Null)
+			fontTexture.Dispose();
+
+			if (descriptorSetLayout != VkDescriptorSetLayout.Null)
 			{
-				Vulkan.vkDestroyImageView(gd.LogicalDevice, g_FontView, null);
-				g_FontView = VkImageView.Null;
+				Vulkan.vkDestroyDescriptorSetLayout(gd.LogicalDevice, descriptorSetLayout, null);
+				descriptorSetLayout = VkDescriptorSetLayout.Null;
 			}
 
-			if (g_FontImage != VkImage.Null)
+			if (descriptorPool != VkDescriptorPool.Null)
 			{
-				Vulkan.vkDestroyImage(gd.LogicalDevice, g_FontImage, null);
-				g_FontImage = VkImage.Null;
+				Vulkan.vkDestroyDescriptorPool(gd.LogicalDevice, descriptorPool, null);
+				descriptorPool = VkDescriptorPool.Null;
 			}
 
-			if (g_FontMemory != VkDeviceMemory.Null)
+			if (pipelineLayout != VkPipelineLayout.Null)
 			{
-				Vulkan.vkFreeMemory(gd.LogicalDevice, g_FontMemory, null);
-				g_FontMemory = VkDeviceMemory.Null;
+				Vulkan.vkDestroyPipelineLayout(gd.LogicalDevice, pipelineLayout, null);
+				pipelineLayout = VkPipelineLayout.Null;
 			}
 
-			if (g_FontSampler != VkSampler.Null)
+			if (pipeline != VkPipeline.Null)
 			{
-				Vulkan.vkDestroySampler(gd.LogicalDevice, g_FontSampler, null);
-				g_FontSampler = VkSampler.Null;
-			}
-
-			if (_descriptorSetLayout != VkDescriptorSetLayout.Null)
-			{
-				Vulkan.vkDestroyDescriptorSetLayout(gd.LogicalDevice, _descriptorSetLayout, null);
-				_descriptorSetLayout = VkDescriptorSetLayout.Null;
-			}
-
-			if (imguiPool != VkDescriptorPool.Null)
-			{
-				Vulkan.vkDestroyDescriptorPool(gd.LogicalDevice, imguiPool, null);
-				imguiPool = VkDescriptorPool.Null;
-			}
-
-			if (_pipelineLayout != VkPipelineLayout.Null)
-			{
-				Vulkan.vkDestroyPipelineLayout(gd.LogicalDevice, _pipelineLayout, null);
-				_pipelineLayout = VkPipelineLayout.Null;
-			}
-
-			if (_pipeline != VkPipeline.Null)
-			{
-				Vulkan.vkDestroyPipeline(gd.LogicalDevice, _pipeline, null);
-				_pipeline = VkPipeline.Null;
+				Vulkan.vkDestroyPipeline(gd.LogicalDevice, pipeline, null);
+				pipeline = VkPipeline.Null;
 			}
 		}
 	}

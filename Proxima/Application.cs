@@ -108,17 +108,21 @@ namespace Proxima
 
 				if (ImGui.Begin("Asset Manager"))
 				{
-					foreach (var pair in AssetManager.textureCache)
+					foreach (var (name, texture) in AssetManager.textureCache)
 					{
-						if (pair.Value is not Texture2D) continue;
-						ImGui.Text(pair.Key);
-
-						if (!imguiImageCache.ContainsKey(pair.Value))
-						{
-							imguiImageCache.Add(pair.Value, ImGuiController.ImGui_ImplVulkan_AddTexture(pair.Value.Sampler, pair.Value.View, VkImageLayout.ShaderReadOnlyOptimal));
-						}
-
-						ImGui.Image((IntPtr)imguiImageCache[pair.Value].Handle, new Vector2(100f));
+						ImGui.Text(name);
+					
+						if (texture is not Texture2D) continue;
+						if (!imguiImageCache.ContainsKey(texture)) imguiImageCache.Add(texture, ImGuiController.AddTexture(texture.Sampler, texture.View, VkImageLayout.ShaderReadOnlyOptimal));
+					
+						ImGui.Image((IntPtr)imguiImageCache[texture].Handle, new Vector2(100f));
+					}
+					
+					ImGui.Separator();
+					
+					foreach (var (name, shader) in AssetManager.shaderCache)
+					{
+						ImGui.Text(name);
 					}
 
 					ImGui.End();
@@ -136,7 +140,7 @@ namespace Proxima
 				ImGui.Render();
 				var imDrawDataPtr = ImGui.GetDrawData();
 
-				ImGuiController.ImGui_ImplVulkan_RenderDrawData(*imDrawDataPtr.NativePtr, buffer);
+				ImGuiController.RenderDrawData(*imDrawDataPtr.NativePtr, buffer);
 
 				GraphicsDevice.End(buffer);
 

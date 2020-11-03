@@ -82,12 +82,6 @@ namespace Proxima.Graphics
 			Vulkan.vkFreeMemory(graphicsDevice.LogicalDevice, stagingBufferMemory, null);
 		}
 
-		public override unsafe void Dispose()
-		{
-			Vulkan.vkDestroyBuffer(graphicsDevice.LogicalDevice, buffer, null);
-			Vulkan.vkFreeMemory(graphicsDevice.LogicalDevice, memory, null);
-		}
-
 		public void Bind(VkCommandBuffer cmdBuffer)
 		{
 			Vulkan.vkCmdBindIndexBuffer(cmdBuffer, buffer, 0, IndexType);
