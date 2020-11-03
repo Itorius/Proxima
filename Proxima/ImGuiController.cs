@@ -7,7 +7,6 @@ using GLFW;
 using ImGuiNET;
 using Proxima.Graphics;
 using Vortice.Vulkan;
-using Buffer = System.Buffer;
 using Vulkan = Vortice.Vulkan.Vulkan;
 
 namespace Proxima
@@ -466,11 +465,9 @@ namespace Proxima
 
 		public static unsafe void RenderDrawData(ImDrawData draw_data, VkCommandBuffer command_buffer)
 		{
-			// Avoid rendering when minimized, scale coordinates for retina displays (screen coordinates != framebuffer coordinates)
-			int fb_width = (int)(draw_data.DisplaySize.X * draw_data.FramebufferScale.X);
-			int fb_height = (int)(draw_data.DisplaySize.Y * draw_data.FramebufferScale.Y);
-			if (fb_width <= 0 || fb_height <= 0)
-				return;
+			int width = (int)(draw_data.DisplaySize.X * draw_data.FramebufferScale.X);
+			int height = (int)(draw_data.DisplaySize.Y * draw_data.FramebufferScale.Y);
+			if (width <= 0 || height <= 0) return;
 
 			// Allocate array to store enough vertex/index buffers
 			ref WindowRenderBuffers wrb = ref windowRenderBuffers;
@@ -493,17 +490,17 @@ namespace Proxima
 				else rb.IndexBuffer.Resize((uint)draw_data.TotalIdxCount);
 
 				// Upload vertex/index data into a single contiguous GPU buffer
-				ImDrawVert* vtx_dst = rb.VertexBuffer.Map();
-				ushort* idx_dst = rb.IndexBuffer.Map();
+				var vtx_dst = rb.VertexBuffer.Map();
+				var idx_dst = rb.IndexBuffer.Map();
 
 				for (int n = 0; n < draw_data.CmdListsCount; n++)
 				{
-					ImDrawList* cmd_list = draw_data.CmdLists[n];
+					ImDrawList* cmdList = draw_data.CmdLists[n];
 
-					Buffer.MemoryCopy(cmd_list->VtxBuffer.Data.ToPointer(), vtx_dst, cmd_list->VtxBuffer.Size * sizeof(ImDrawVert), cmd_list->VtxBuffer.Size * sizeof(ImDrawVert));
-					Buffer.MemoryCopy(cmd_list->IdxBuffer.Data.ToPointer(), idx_dst, cmd_list->IdxBuffer.Size * sizeof(ushort), cmd_list->IdxBuffer.Size * sizeof(ushort));
-					vtx_dst += cmd_list->VtxBuffer.Size;
-					idx_dst += cmd_list->IdxBuffer.Size;
+					Utility.MemoryCopy(cmdList->VtxBuffer.Data, vtx_dst, (ulong)(cmdList->VtxBuffer.Size * sizeof(ImDrawVert)));
+					Utility.MemoryCopy(cmdList->IdxBuffer.Data, idx_dst, (ulong)(cmdList->IdxBuffer.Size * sizeof(ushort)));
+					vtx_dst += cmdList->VtxBuffer.Size;
+					idx_dst += cmdList->IdxBuffer.Size;
 				}
 
 				rb.VertexBuffer.Unmap();
@@ -511,7 +508,7 @@ namespace Proxima
 			}
 
 			// Setup desired Vulkan state
-			SetupRenderState(draw_data, pipeline, command_buffer, rb, fb_width, fb_height);
+			SetupRenderState(draw_data, pipeline, command_buffer, rb, width, height);
 
 			// // Will project scissor/clipping rectangles into framebuffer space
 			Vector2 clip_off = draw_data.DisplayPos; // (0,0) unless using multi-viewports
@@ -529,7 +526,7 @@ namespace Proxima
 					ref ImDrawCmd pcmd = ref cmd_list->CmdBuffer.Ref<ImDrawCmd>(cmd_i);
 					if (pcmd.UserCallback != IntPtr.Zero)
 					{
-						if (pcmd.UserCallback == new IntPtr(-1)) SetupRenderState(draw_data, pipeline, command_buffer, rb, fb_width, fb_height);
+						if (pcmd.UserCallback == new IntPtr(-1)) SetupRenderState(draw_data, pipeline, command_buffer, rb, width, height);
 						else
 						{
 							fixed (ImDrawCmd* ptr = &pcmd) Marshal.GetDelegateForFunctionPointer<ImGuiUserCallback>(pcmd.UserCallback).Invoke(cmd_list, ptr);
@@ -538,20 +535,20 @@ namespace Proxima
 					else
 					{
 						// Project scissor/clipping rectangles into framebuffer space
-						Vector4 clip_rect = Vector4.Zero;
-						clip_rect.X = (pcmd.ClipRect.X - clip_off.X) * clip_scale.X;
-						clip_rect.Y = (pcmd.ClipRect.Y - clip_off.Y) * clip_scale.Y;
-						clip_rect.Z = (pcmd.ClipRect.Z - clip_off.X) * clip_scale.X;
-						clip_rect.W = (pcmd.ClipRect.W - clip_off.Y) * clip_scale.Y;
+						Vector4 clip = new Vector4(
+							(pcmd.ClipRect.X - clip_off.X) * clip_scale.X,
+							(pcmd.ClipRect.Y - clip_off.Y) * clip_scale.Y,
+							(pcmd.ClipRect.Z - clip_off.X) * clip_scale.X,
+							(pcmd.ClipRect.W - clip_off.Y) * clip_scale.Y);
 
-						if (clip_rect.X < fb_width && clip_rect.Y < fb_height && clip_rect.Z >= 0.0f && clip_rect.W >= 0.0f)
+						if (clip.X < width && clip.Y < height && clip.Z >= 0.0f && clip.W >= 0.0f)
 						{
 							// Negative offsets are illegal for vkCmdSetScissor
-							if (clip_rect.X < 0.0f) clip_rect.X = 0.0f;
-							if (clip_rect.Y < 0.0f) clip_rect.Y = 0.0f;
+							if (clip.X < 0.0f) clip.X = 0.0f;
+							if (clip.Y < 0.0f) clip.Y = 0.0f;
 
 							// Apply scissor/clipping rectangle
-							VkRect2D scissor = new VkRect2D((int)clip_rect.X, (int)clip_rect.Y, (int)(clip_rect.Z - clip_rect.X), (int)(clip_rect.W - clip_rect.Y));
+							VkRect2D scissor = new VkRect2D((int)clip.X, (int)clip.Y, (int)(clip.Z - clip.X), (int)(clip.W - clip.Y));
 							Vulkan.vkCmdSetScissor(command_buffer, 0, 1, &scissor);
 
 							VkDescriptorSet descriptorSet = new VkDescriptorSet((ulong)pcmd.TextureId);
@@ -572,31 +569,23 @@ namespace Proxima
 		{
 			Vulkan.vkCmdBindPipeline(command_buffer, VkPipelineBindPoint.Graphics, pipeline);
 
-			// Bind Vertex And Index Buffer:
 			if (draw_data.TotalVtxCount > 0)
 			{
 				rb.VertexBuffer!.Bind(command_buffer);
 				rb.IndexBuffer!.Bind(command_buffer);
 			}
 
-			// Setup viewport:
-			{
-				VkViewport viewport = new VkViewport(0, 0, fb_width, fb_height, 0f, 1f);
-				Vulkan.vkCmdSetViewport(command_buffer, 0, 1, &viewport);
-			}
+			VkViewport viewport = new VkViewport(0, 0, fb_width, fb_height, 0f, 1f);
+			Vulkan.vkCmdSetViewport(command_buffer, 0, 1, &viewport);
 
-			// Setup scale and translation:
-			// Our visible imgui space lies from draw_data->DisplayPps (top left) to draw_data->DisplayPos+data_data->DisplaySize (bottom right). DisplayPos is (0,0) for single viewport apps.
-			{
-				float[] scale = new float[2];
-				scale[0] = 2.0f / draw_data.DisplaySize.X;
-				scale[1] = 2.0f / draw_data.DisplaySize.Y;
-				float[] translate = new float[2];
-				translate[0] = -1.0f - draw_data.DisplayPos.X * scale[0];
-				translate[1] = -1.0f - draw_data.DisplayPos.Y * scale[1];
-				fixed (float* ptr = scale) Vulkan.vkCmdPushConstants(command_buffer, pipelineLayout, VkShaderStageFlags.Vertex, sizeof(float) * 0, sizeof(float) * 2, ptr);
-				fixed (float* ptr = translate) Vulkan.vkCmdPushConstants(command_buffer, pipelineLayout, VkShaderStageFlags.Vertex, sizeof(float) * 2, sizeof(float) * 2, ptr);
-			}
+			float[] scale = new float[2];
+			scale[0] = 2f / draw_data.DisplaySize.X;
+			scale[1] = 2f / draw_data.DisplaySize.Y;
+			float[] translate = new float[2];
+			translate[0] = -1f - draw_data.DisplayPos.X * scale[0];
+			translate[1] = -1f - draw_data.DisplayPos.Y * scale[1];
+			fixed (float* ptr = scale) Vulkan.vkCmdPushConstants(command_buffer, pipelineLayout, VkShaderStageFlags.Vertex,  0, sizeof(float) * 2, ptr);
+			fixed (float* ptr = translate) Vulkan.vkCmdPushConstants(command_buffer, pipelineLayout, VkShaderStageFlags.Vertex, sizeof(float) * 2, sizeof(float) * 2, ptr);
 		}
 
 		public static unsafe void Dispose()

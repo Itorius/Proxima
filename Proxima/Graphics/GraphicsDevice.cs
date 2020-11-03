@@ -28,7 +28,7 @@ namespace Proxima.Graphics
 
 		internal VulkanRenderPass RenderPass;
 
-		private VkFramebuffer[] Framebuffers;
+		internal VkFramebuffer[] Framebuffers;
 		private DepthBuffer DepthBuffer;
 
 		private int currentFrame;
@@ -282,66 +282,20 @@ namespace Proxima.Graphics
 			OnInvalidate.Invoke();
 		}
 
-		public unsafe VkCommandBuffer Begin(Vector4 color, uint index)
-		{
-			VkCommandBufferAllocateInfo allocateInfo = new VkCommandBufferAllocateInfo
-			{
-				sType = VkStructureType.CommandBufferAllocateInfo,
-				commandPool = CommandPool,
-				level = VkCommandBufferLevel.Primary,
-				commandBufferCount = 1
-			};
-
-			Vulkan.vkAllocateCommandBuffers(LogicalDevice, &allocateInfo, out VkCommandBuffer buffer);
-
-			VkCommandBufferBeginInfo beginInfo = new VkCommandBufferBeginInfo
-			{
-				sType = VkStructureType.CommandBufferBeginInfo,
-				flags = VkCommandBufferUsageFlags.SimultaneousUse,
-				pInheritanceInfo = null
-			};
-
-			Vulkan.vkBeginCommandBuffer(buffer, &beginInfo).CheckResult();
-
-			VkClearValue[] clearValues = new VkClearValue[2];
-
-			clearValues[0].color = new VkClearColorValue(color.X, color.Y, color.Z, color.W);
-			clearValues[1].depthStencil = new VkClearDepthStencilValue(1f, 0);
-
-			VkRenderPassBeginInfo renderPassBeginInfo = new VkRenderPassBeginInfo
-			{
-				sType = VkStructureType.RenderPassBeginInfo,
-				renderPass = (VkRenderPass)RenderPass,
-				framebuffer = Framebuffers[index],
-				renderArea = new VkRect2D(0, 0, Swapchain.Extent.width, Swapchain.Extent.height),
-				clearValueCount = (uint)clearValues.Length
-			};
-			fixed (VkClearValue* ptr = clearValues) renderPassBeginInfo.pClearValues = ptr;
-
-			Vulkan.vkCmdBeginRenderPass(buffer, &renderPassBeginInfo, VkSubpassContents.Inline);
-
-			return buffer;
-		}
-
-		public void End(VkCommandBuffer buffer)
-		{
-			Vulkan.vkCmdEndRenderPass(buffer);
-
-			Vulkan.vkEndCommandBuffer(buffer);
-
-			SubmitCommandBuffer(buffer);
-		}
-
 		public uint CurrentFrameIndex { get; private set; }
 
-		private List<VkCommandBuffer> buffers = new List<VkCommandBuffer>();
+		private List<VkCommandBuffer> secondary_buffers = new List<VkCommandBuffer>();
 
-		public void SubmitCommandBuffer(VkCommandBuffer buffer)
+		public void SubmitSecondaryBuffer(VkCommandBuffer buffer) => secondary_buffers.Add(buffer);
+
+		public VkCommandBufferInheritanceInfo GetInheritanceInfo() => new VkCommandBufferInheritanceInfo
 		{
-			buffers.Add(buffer);
-		}
+			sType = VkStructureType.CommandBufferInheritanceInfo,
+			framebuffer = Framebuffers[CurrentFrameIndex],
+			renderPass = (VkRenderPass)RenderPass
+		};
 
-		internal void BeginFrame()
+		internal unsafe void BeginFrame(Vector4 color)
 		{
 			Vulkan.vkWaitForFences(LogicalDevice, InFlightFences[currentFrame], true, ulong.MaxValue);
 
@@ -358,10 +312,54 @@ namespace Proxima.Graphics
 			if (ImagesInFlight[CurrentFrameIndex] != VkFence.Null) Vulkan.vkWaitForFences(LogicalDevice, ImagesInFlight[CurrentFrameIndex], true, uint.MaxValue);
 
 			ImagesInFlight[CurrentFrameIndex] = InFlightFences[currentFrame];
+
+			VkCommandBufferAllocateInfo allocateInfo = new VkCommandBufferAllocateInfo
+			{
+				sType = VkStructureType.CommandBufferAllocateInfo,
+				commandPool = CommandPool,
+				level = VkCommandBufferLevel.Primary,
+				commandBufferCount = 1
+			};
+
+			Vulkan.vkAllocateCommandBuffers(LogicalDevice, &allocateInfo, out currentBuffer);
+
+			VkCommandBufferBeginInfo beginInfo = new VkCommandBufferBeginInfo
+			{
+				sType = VkStructureType.CommandBufferBeginInfo,
+				flags = VkCommandBufferUsageFlags.SimultaneousUse,
+				pInheritanceInfo = null
+			};
+
+			Vulkan.vkBeginCommandBuffer(currentBuffer, &beginInfo).CheckResult();
+
+			VkClearValue[] clearValues = new VkClearValue[2];
+
+			clearValues[0].color = new VkClearColorValue(color.X, color.Y, color.Z, color.W);
+			clearValues[1].depthStencil = new VkClearDepthStencilValue(1f, 0);
+
+			VkRenderPassBeginInfo renderPassBeginInfo = new VkRenderPassBeginInfo
+			{
+				sType = VkStructureType.RenderPassBeginInfo,
+				renderPass = (VkRenderPass)RenderPass,
+				framebuffer = Framebuffers[currentFrameIndex],
+				renderArea = new VkRect2D(0, 0, Swapchain.Extent.width, Swapchain.Extent.height),
+				clearValueCount = (uint)clearValues.Length
+			};
+			fixed (VkClearValue* ptr = clearValues) renderPassBeginInfo.pClearValues = ptr;
+
+			Vulkan.vkCmdBeginRenderPass(currentBuffer, &renderPassBeginInfo, VkSubpassContents.SecondaryCommandBuffers);
 		}
+
+		private VkCommandBuffer currentBuffer;
 
 		internal unsafe void EndFrame()
 		{
+			fixed (VkCommandBuffer* ptr = secondary_buffers.GetInternalArray()) Vulkan.vkCmdExecuteCommands(currentBuffer, (uint)secondary_buffers.Count, ptr);
+
+			Vulkan.vkCmdEndRenderPass(currentBuffer);
+
+			Vulkan.vkEndCommandBuffer(currentBuffer);
+
 			VkSemaphore[] waitSemaphores = { ImageAvailableSemaphores[currentFrame] };
 			VkPipelineStageFlags[] waitStages = { VkPipelineStageFlags.ColorAttachmentOutput };
 
@@ -369,12 +367,12 @@ namespace Proxima.Graphics
 			{
 				sType = VkStructureType.SubmitInfo,
 				waitSemaphoreCount = 1,
-				commandBufferCount = (uint)buffers.Count,
+				commandBufferCount = 1,
 				signalSemaphoreCount = 1
 			};
 			fixed (VkSemaphore* ptr = waitSemaphores) submitInfo.pWaitSemaphores = ptr;
 			fixed (VkPipelineStageFlags* ptr = waitStages) submitInfo.pWaitDstStageMask = ptr;
-			fixed (VkCommandBuffer* ptr = buffers.ToArray()) submitInfo.pCommandBuffers = ptr;
+			fixed (VkCommandBuffer* ptr = &currentBuffer) submitInfo.pCommandBuffers = ptr;
 
 			VkSemaphore[] signalSemaphores = { RenderFinishedSemaphores[currentFrame] };
 			fixed (VkSemaphore* ptr = signalSemaphores) submitInfo.pSignalSemaphores = ptr;
@@ -382,7 +380,7 @@ namespace Proxima.Graphics
 			Vulkan.vkResetFences(LogicalDevice, InFlightFences[currentFrame]);
 
 			Vulkan.vkQueueSubmit(GraphicsQueue, 1, &submitInfo, InFlightFences[currentFrame]).CheckResult();
-			buffers.Clear();
+			secondary_buffers.Clear();
 
 			VkPresentInfoKHR presentInfo = new VkPresentInfoKHR
 			{

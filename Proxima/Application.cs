@@ -111,15 +111,15 @@ namespace Proxima
 					foreach (var (name, texture) in AssetManager.textureCache)
 					{
 						ImGui.Text(name);
-					
+
 						if (texture is not Texture2D) continue;
 						if (!imguiImageCache.ContainsKey(texture)) imguiImageCache.Add(texture, ImGuiController.AddTexture(texture.Sampler, texture.View, VkImageLayout.ShaderReadOnlyOptimal));
-					
+
 						ImGui.Image((IntPtr)imguiImageCache[texture].Handle, new Vector2(100f));
 					}
-					
+
 					ImGui.Separator();
-					
+
 					foreach (var (name, shader) in AssetManager.shaderCache)
 					{
 						ImGui.Text(name);
@@ -130,9 +130,7 @@ namespace Proxima
 
 				// ImGui.ShowDemoWindow();
 
-				GraphicsDevice.BeginFrame();
-
-				var buffer = GraphicsDevice.Begin(new Vector4(0f, 0f, 0f, 0f), GraphicsDevice.CurrentFrameIndex);
+				GraphicsDevice.BeginFrame(new Vector4(0.1f, 0.1f, 0.1f, 1f));
 
 				OnUpdate();
 				OnRender();
@@ -140,9 +138,32 @@ namespace Proxima
 				ImGui.Render();
 				var imDrawDataPtr = ImGui.GetDrawData();
 
-				ImGuiController.RenderDrawData(*imDrawDataPtr.NativePtr, buffer);
+				VkCommandBufferAllocateInfo allocateInfo = new VkCommandBufferAllocateInfo
+				{
+					sType = VkStructureType.CommandBufferAllocateInfo,
+					commandPool = GraphicsDevice.CommandPool,
+					level = VkCommandBufferLevel.Secondary,
+					commandBufferCount = 1
+				};
 
-				GraphicsDevice.End(buffer);
+				Vortice.Vulkan.Vulkan.vkAllocateCommandBuffers(GraphicsDevice.LogicalDevice, &allocateInfo, out VkCommandBuffer b);
+
+				VkCommandBufferInheritanceInfo info = GraphicsDevice.GetInheritanceInfo();
+
+				VkCommandBufferBeginInfo beginInfo = new VkCommandBufferBeginInfo
+				{
+					sType = VkStructureType.CommandBufferBeginInfo,
+					flags = VkCommandBufferUsageFlags.RenderPassContinue | VkCommandBufferUsageFlags.SimultaneousUse,
+					pInheritanceInfo = &info
+				};
+
+				Vortice.Vulkan.Vulkan.vkBeginCommandBuffer(b, &beginInfo).CheckResult();
+
+				ImGuiController.RenderDrawData(*imDrawDataPtr.NativePtr, b);
+
+				Vortice.Vulkan.Vulkan.vkEndCommandBuffer(b).CheckResult();
+
+				GraphicsDevice.SubmitSecondaryBuffer(b);
 
 				GraphicsDevice.EndFrame();
 			}

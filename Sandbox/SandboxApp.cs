@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using System.Threading;
 using GLFW;
 using Proxima;
 using Proxima.ECS;
@@ -68,14 +69,14 @@ namespace Sandbox
 
 		private float angle;
 		private float scale = 1f;
-
+		
 		public override void OnRender()
 		{
-			// Vector4 color = new HslColor(MathF.Sin(Time.TotalUpdateTime) * 0.5f + 0.5f, 1f, 0.5f, 0.1f).ToRGB();
-			//
-			// Matrix4x4 projection = Matrix4x4.CreateOrthographic(window.ClientWidth, window.ClientHeight, -1f, 1f);
-			// Matrix4x4 view = Matrix4x4.CreateTranslation(MathF.Sin(Time.TotalUpdateTime) * 100f, 0f, 0f);
-			// view = Matrix4x4.Identity;
+			Vector4 color = new HslColor(MathF.Sin(Time.TotalUpdateTime) * 0.5f + 0.5f, 1f, 0.5f, 0.1f).ToRGB();
+			
+			Matrix4x4 projection = Matrix4x4.CreateOrthographic(window.ClientWidth, window.ClientHeight, -1f, 1f);
+			Matrix4x4 view = Matrix4x4.CreateTranslation(MathF.Sin(Time.TotalUpdateTime) * 100f, 0f, 0f);
+			view = Matrix4x4.Identity;
 			//
 			// // angle += Time.DeltaUpdateTime * 0.1f;
 			// // material.SetUniformBufferData("settings", new Renderer2D.Data
@@ -86,22 +87,22 @@ namespace Sandbox
 			// // 	u_Time = 0f
 			// // });
 			//
-			// Renderer2D.Begin(view * projection, Vector4.Zero/*, material*/);
+			Renderer2D.Begin(view * projection, Vector4.Zero/*, material*/);
 			// // Renderer2D.DrawQuad(new Vector3(0f, 0f, -0.1f), new Vector2(window.ClientWidth, window.ClientHeight), Vector4.One);
 			//
-			// // const int toms = 25;
-			// // for (int i = 0; i < toms; i++)
-			// // {
-			// // 	float angle = MathF.PI*2f / toms * i + Time.TotalUpdateTime;
-			// // 	float x = MathF.Cos(angle) * 250f;
-			// // 	float y = MathF.Sin(angle) * 250f;
-			// // 	Renderer2D.DrawQuad(new Vector2(x, y), new Vector2(100f), color);
-			// // }
+			const int toms = 25;
+			for (int i = 0; i < toms; i++)
+			{
+				float angle = MathF.PI*2f / toms * i + Time.TotalUpdateTime;
+				float x = MathF.Cos(angle) * 250f;
+				float y = MathF.Sin(angle) * 250f;
+				Renderer2D.DrawQuad(new Vector2(x, y), new Vector2(100f), color);
+			}
 			//
 			// // Renderer2D.DrawQuad(new Vector3(-200f, 0f, 0.1f), new Vector2(500f), new Vector4(0.9f, 0.1f, 0.1f, 0.3f));
 			// // Renderer2D.DrawQuad(new Vector3(200f, 0f, 0.1f), new Vector2(500f), new Vector4(0.9f, 0.1f, 0.1f, 0.3f));
 			//
-			// Renderer2D.End();
+			Renderer2D.End();
 		}
 
 		public override void OnClose()
