@@ -192,6 +192,37 @@ namespace Proxima
 			}
 		}
 
+		public static unsafe VkDescriptorSet ImGui_ImplVulkan_AddTexture(VkSampler sampler, VkImageView image_view, VkImageLayout image_layout)
+		{
+			VkDescriptorSet descriptor_set;
+			VkDescriptorSetAllocateInfo alloc_info = new VkDescriptorSetAllocateInfo
+			{
+				sType = VkStructureType.DescriptorSetAllocateInfo,
+				descriptorPool = imguiPool,
+				descriptorSetCount = 1
+			};
+			fixed (VkDescriptorSetLayout* ptr = &_descriptorSetLayout) alloc_info.pSetLayouts = ptr;
+			Vulkan.vkAllocateDescriptorSets(gd.LogicalDevice, &alloc_info, &descriptor_set);
+
+			VkDescriptorImageInfo desc_image = new VkDescriptorImageInfo
+			{
+				sampler = sampler,
+				imageView = image_view,
+				imageLayout = image_layout
+			};
+			VkWriteDescriptorSet write_desc = new VkWriteDescriptorSet
+			{
+				sType = VkStructureType.WriteDescriptorSet,
+				dstSet = descriptor_set,
+				descriptorCount = 1,
+				descriptorType = VkDescriptorType.CombinedImageSampler,
+				pImageInfo = &desc_image
+			};
+			Vulkan.vkUpdateDescriptorSets(gd.LogicalDevice, write_desc);
+
+			return descriptor_set;
+		}
+
 		private static unsafe void ImGuiInitialization()
 		{
 			IntPtr context = ImGui.CreateContext();
@@ -202,6 +233,8 @@ namespace Proxima
 			io.BackendFlags |= ImGuiBackendFlags.HasMouseCursors;
 			io.BackendFlags |= ImGuiBackendFlags.HasSetMousePos;
 			io.BackendFlags |= ImGuiBackendFlags.RendererHasVtxOffset;
+
+			io.ConfigFlags |= ImGuiConfigFlags.DockingEnable;
 
 			io.KeyMap[(int)ImGuiKey.Tab] = (int)Keys.Tab;
 			io.KeyMap[(int)ImGuiKey.LeftArrow] = (int)Keys.Left;
@@ -278,9 +311,6 @@ namespace Proxima
 			g_MouseCursors[ImGuiMouseCursor.ResizeNWSE] = Glfw.CreateStandardCursor(CursorType.ResizeNWSE);
 			g_MouseCursors[ImGuiMouseCursor.NotAllowed] = Glfw.CreateStandardCursor(CursorType.NotAllowed);
 
-			// io.SetClipboardTextFn = ImGui_ImplGlfw_SetClipboardText;
-			// io.GetClipboardTextFn = ImGui_ImplGlfw_GetClipboardText;
-
 			var font = io.Fonts.AddFontFromFileTTF("Assets/Fonts/Open_Sans/OpenSans-Regular.ttf", 17f);
 			io.Fonts.AddFontDefault(font.ConfigData);
 		}
@@ -315,28 +345,17 @@ namespace Proxima
 		}
 
 		private static VkSampler g_FontSampler;
+
 		private static VkDescriptorSetLayout _descriptorSetLayout;
-		private static VkDescriptorSet _descriptorSet;
+
 		private static VkPipelineLayout _pipelineLayout;
 		private static VkPipeline _pipeline;
 
-		private static unsafe void CreateDeviceResources()
+		private static void CreateDeviceResources()
 		{
 			CreateFontSampler();
 
 			CreateDescriptorSetLayout();
-
-			{
-				VkDescriptorSetAllocateInfo alloc_info = new VkDescriptorSetAllocateInfo
-				{
-					sType = VkStructureType.DescriptorSetAllocateInfo,
-					descriptorPool = imguiPool,
-					descriptorSetCount = 1
-				};
-				fixed (VkDescriptorSetLayout* ptr = &_descriptorSetLayout) alloc_info.pSetLayouts = ptr;
-
-				fixed (VkDescriptorSet* ptr = &_descriptorSet) Vulkan.vkAllocateDescriptorSets(gd.LogicalDevice, &alloc_info, ptr).CheckResult();
-			}
 
 			CreatePipelineLayout();
 
@@ -403,7 +422,6 @@ namespace Proxima
 				descriptorCount = 1,
 				stageFlags = VkShaderStageFlags.Fragment
 			};
-			fixed (VkSampler* ptr = &g_FontSampler) binding.pImmutableSamplers = ptr;
 
 			VkDescriptorSetLayoutCreateInfo info = new VkDescriptorSetLayoutCreateInfo
 			{
@@ -618,25 +636,7 @@ namespace Proxima
 				Vulkan.vkCreateImageView(gd.LogicalDevice, &info, null, out g_FontView).CheckResult();
 			}
 
-			// Update the Descriptor Set:
-			{
-				VkDescriptorImageInfo desc_image = new VkDescriptorImageInfo
-				{
-					sampler = g_FontSampler,
-					imageView = g_FontView,
-					imageLayout = VkImageLayout.ShaderReadOnlyOptimal
-				};
-				VkWriteDescriptorSet write_desc = new VkWriteDescriptorSet
-				{
-					sType = VkStructureType.WriteDescriptorSet,
-					dstSet = _descriptorSet,
-					descriptorCount = 1,
-					descriptorType = VkDescriptorType.CombinedImageSampler,
-					pImageInfo = &desc_image
-				};
-
-				Vulkan.vkUpdateDescriptorSets(gd.LogicalDevice, write_desc);
-			}
+			VkDescriptorSet font_descriptor_set = ImGui_ImplVulkan_AddTexture(g_FontSampler, g_FontView, VkImageLayout.ShaderReadOnlyOptimal);
 
 			// Create the Upload Buffer:
 			{
@@ -711,7 +711,7 @@ namespace Proxima
 			}
 
 			// Store our identifier
-			io.Fonts.TexID = new IntPtr((long)g_FontImage.Handle);
+			io.Fonts.TexID = (IntPtr)font_descriptor_set.Handle;
 		}
 
 		private static ulong g_BufferMemoryAlignment = 256;
@@ -868,6 +868,9 @@ namespace Proxima
 							VkRect2D scissor = new VkRect2D((int)clip_rect.X, (int)clip_rect.Y, (int)(clip_rect.Z - clip_rect.X), (int)(clip_rect.W - clip_rect.Y));
 							Vulkan.vkCmdSetScissor(command_buffer, 0, 1, &scissor);
 
+							VkDescriptorSet descriptorSet = new VkDescriptorSet((ulong)pcmd.TextureId.ToInt64());
+							Vulkan.vkCmdBindDescriptorSets(command_buffer, VkPipelineBindPoint.Graphics, _pipelineLayout, 0, descriptorSet);
+
 							// Draw
 							Vulkan.vkCmdDrawIndexed(command_buffer, pcmd.ElemCount, 1, (uint)(pcmd.IdxOffset + global_idx_offset), (int)(pcmd.VtxOffset + global_vtx_offset), 0);
 						}
@@ -881,7 +884,7 @@ namespace Proxima
 
 		private static unsafe void ImGui_ImplVulkan_SetupRenderState(ImDrawData draw_data, VkPipeline pipeline, VkCommandBuffer command_buffer, ImGui_ImplVulkanH_FrameRenderBuffers rb, int fb_width, int fb_height)
 		{
-			Vulkan.vkCmdBindDescriptorSets(command_buffer, VkPipelineBindPoint.Graphics, _pipelineLayout, 0, _descriptorSet);
+			// Vulkan.vkCmdBindDescriptorSets(command_buffer, VkPipelineBindPoint.Graphics, _pipelineLayout, 0, _descriptorSet);
 			Vulkan.vkCmdBindPipeline(command_buffer, VkPipelineBindPoint.Graphics, pipeline);
 
 			// Bind Vertex And Index Buffer:
@@ -984,12 +987,6 @@ namespace Proxima
 			{
 				Vulkan.vkDestroySampler(gd.LogicalDevice, g_FontSampler, null);
 				g_FontSampler = VkSampler.Null;
-			}
-
-			if (_descriptorSet != VkDescriptorSet.Null)
-			{
-				Vulkan.vkFreeDescriptorSets(gd.LogicalDevice, imguiPool, _descriptorSet);
-				_descriptorSet = VkDescriptorSet.Null;
 			}
 
 			if (_descriptorSetLayout != VkDescriptorSetLayout.Null)

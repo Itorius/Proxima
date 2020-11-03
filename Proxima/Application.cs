@@ -1,10 +1,13 @@
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 using GLFW;
 using ImGuiNET;
 using NLog;
 using Proxima.Graphics;
+using Vortice.Vulkan;
 using Exception = System.Exception;
+using Vulkan = GLFW.Vulkan;
 
 namespace Proxima
 {
@@ -80,6 +83,8 @@ namespace Proxima
 		{
 		}
 
+		private Dictionary<Texture, VkDescriptorSet> imguiImageCache = new Dictionary<Texture, VkDescriptorSet>();
+
 		internal unsafe void Run()
 		{
 			DateTime old = DateTime.Now;
@@ -100,7 +105,26 @@ namespace Proxima
 				ImGuiController.NewFrame();
 
 				ImGui.NewFrame();
-				ImGui.ShowDemoWindow();
+
+				if (ImGui.Begin("Asset Manager"))
+				{
+					foreach (var pair in AssetManager.textureCache)
+					{
+						if (pair.Value is not Texture2D) continue;
+						ImGui.Text(pair.Key);
+
+						if (!imguiImageCache.ContainsKey(pair.Value))
+						{
+							imguiImageCache.Add(pair.Value, ImGuiController.ImGui_ImplVulkan_AddTexture(pair.Value.Sampler, pair.Value.View, VkImageLayout.ShaderReadOnlyOptimal));
+						}
+
+						ImGui.Image((IntPtr)imguiImageCache[pair.Value].Handle, new Vector2(100f));
+					}
+
+					ImGui.End();
+				}
+
+				// ImGui.ShowDemoWindow();
 
 				GraphicsDevice.BeginFrame();
 
