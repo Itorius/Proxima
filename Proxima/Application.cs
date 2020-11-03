@@ -97,13 +97,7 @@ namespace Proxima
 
 				Glfw.PollEvents();
 
-				ImGuiIOPtr io = ImGui.GetIO();
-				// IM_ASSERT(io.Fonts->IsBuilt() && "Font atlas not built! It is generally built by the renderer backend. Missing call to renderer _NewFrame() function? e.g. ImGui_ImplOpenGL3_NewFrame().");
-
-				io.DisplaySize = new Vector2(window.Size.Width, window.Size.Height);
-				io.DisplayFramebufferScale = new Vector2(1f, 1f);
-
-				io.DeltaTime = Time.DeltaUpdateTime;
+				ImGuiController.NewFrame();
 
 				ImGui.NewFrame();
 				ImGui.ShowDemoWindow();

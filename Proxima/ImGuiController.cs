@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using GLFW;
@@ -95,6 +96,8 @@ namespace Proxima
 
 		private static GraphicsDevice gd;
 		private static VkDescriptorPool imguiPool;
+		private static List<MouseButton> pressedMouseButtons = new List<MouseButton>();
+		private static List<Keys> pressedKeys = new List<Keys>();
 
 		public static unsafe void Initialize(GraphicsDevice graphicsDevice)
 		{
@@ -203,11 +206,23 @@ namespace Proxima
 			io.KeyMap[(int)ImGuiKey.Y] = (int)Keys.Y;
 			io.KeyMap[(int)ImGuiKey.Z] = (int)Keys.Z;
 
-			gd.window.MouseMoved += (sender, args) =>
+			gd.window.MouseMoved += (sender, args) => { io.MousePos = new Vector2((float)args.X, (float)args.Y); };
+
+			gd.window.MouseButton += (sender, args) =>
 			{
-				io.MousePos = new Vector2((float)args.X, (float)args.Y);
+				if (args.Action == InputState.Press) pressedMouseButtons.Add(args.Button);
+				else if (args.Action == InputState.Release) pressedMouseButtons.Remove(args.Button);
 			};
-			
+
+			gd.window.KeyAction += (sender, args) =>
+			{
+				ImGuiIOPtr io = ImGui.GetIO();
+				if (args.State == InputState.Press) io.KeysDown[(int)args.Key] = true;
+				else if (args.State == InputState.Release) io.KeysDown[(int)args.Key] = false;
+
+				io.KeyCtrl = io.KeysDown[(int)Keys.LeftControl] || io.KeysDown[(int)Keys.RightControl];
+			};
+
 			CreateDeviceResources();
 
 			VkCommandBuffer buffer = VulkanUtils.BeginSingleTimeCommands(graphicsDevice);
@@ -268,6 +283,22 @@ namespace Proxima
 			// }
 			//
 			// g_ClientApi = client_api;
+		}
+
+		public static void NewFrame()
+		{
+			ImGuiIOPtr io = ImGui.GetIO();
+
+			// Debug.Assert(io.Fonts.IsBuilt());
+
+			// IM_ASSERT(io.Fonts->IsBuilt() && "Font atlas not built! It is generally built by the renderer backend. Missing call to renderer _NewFrame() function? e.g. ImGui_ImplOpenGL3_NewFrame().");
+
+			io.DisplaySize = new Vector2(gd.window.Size.Width, gd.window.Size.Height);
+			io.DisplayFramebufferScale = new Vector2(1f, 1f);
+
+			io.DeltaTime = Time.DeltaUpdateTime;
+
+			for (int i = 0; i < io.MouseDown.Count; i++) io.MouseDown[i] = pressedMouseButtons.Contains((MouseButton)i);
 		}
 
 		private static VkSampler fontSampler;
