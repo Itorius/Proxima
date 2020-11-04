@@ -57,9 +57,9 @@ namespace Proxima
 
 		private static GraphicsDevice gd;
 
-		private static VkCommandBuffer buffer;
+		// private static VkCommandBuffer buffer;
 
-		public static Dictionary<Shader, GraphicsPipeline> GraphicsPipelines;
+		public static Dictionary<Shader, VulkanPipeline> GraphicsPipelines;
 
 		private static List<Vertex> vertices = new List<Vertex>();
 		private static List<uint> indices = new List<uint>();
@@ -84,7 +84,7 @@ namespace Proxima
 			gd = graphicsDevice;
 			gd.OnInvalidate += () => GraphicsPipelines.ForEach(pair => pair.Value.Invalidate());
 
-			defaultShader = AssetManager.LoadShader("texture", "Assets/Renderer2D.vert", "Assets/texture.frag");
+			defaultShader = AssetManager.LoadShader("Texture", "Assets/Renderer2D.vert", "Assets/Texture.frag");
 
 			VertexBuffer = new VertexBuffer<Vertex>(gd, MaxQuads * 4);
 			VertexBuffer.SetVertexInputBindingDescription(Vertex.GetBindingDescription());
@@ -98,10 +98,10 @@ namespace Proxima
 			PlaceholderTexture = AssetManager.LoadTexture2D("Assets/Placeholder.png");
 			PlaceholderTexture1D = AssetManager.LoadTexture1D("Assets/Placeholder1D.png");
 
-			GraphicsPipelines = new Dictionary<Shader, GraphicsPipeline>
+			GraphicsPipelines = new Dictionary<Shader, VulkanPipeline>
 			{
 				{
-					defaultShader, new GraphicsPipeline(gd, pipeline =>
+					defaultShader, new VulkanPipeline(gd, pipeline =>
 					{
 						pipeline.SetShader(defaultShader);
 						pipeline.AddVertexBuffer(VertexBuffer);
@@ -112,6 +112,9 @@ namespace Proxima
 					})
 				}
 			};
+
+			currentBuffer = new VulkanCommandBuffer(graphicsDevice, graphicsDevice.GetSecondaryBuffer());
+			currentBuffer.SetName("Renderer2D CmdBuffer");
 		}
 
 		private static Shader ActiveShader;
@@ -124,21 +127,21 @@ namespace Proxima
 			public float u_Time;
 		}
 
-		public static void Begin(Matrix4x4 camera, Vector4 color, Material material)
-		{
-			ActiveShader = material.shader;
-			GraphicsPipelines.TryAdd(material.shader, material.pipeline);
-
-			UniformBufferObject ubo = new UniformBufferObject
-			{
-				Camera = camera
-			};
-
-			material.pipeline.GetBuffer<UniformBufferObject>().SetData(ubo);
-
-			// buffer = gd.Begin(color, gd.CurrentFrameIndex);
-			material.pipeline.Bind(buffer);
-		}
+		// public static void Begin(Matrix4x4 camera, Vector4 color, Material material)
+		// {
+		// 	ActiveShader = material.shader;
+		// 	GraphicsPipelines.TryAdd(material.shader, material.pipeline);
+		//
+		// 	UniformBufferObject ubo = new UniformBufferObject
+		// 	{
+		// 		Camera = camera
+		// 	};
+		//
+		// 	material.pipeline.GetBuffer<UniformBufferObject>().SetData(ubo);
+		//
+		// 	// buffer = gd.Begin(color, gd.CurrentFrameIndex);
+		// 	// material.pipeline.Bind(buffer);
+		// }
 
 		private static void ChangeShader(Shader? shader)
 		{
@@ -146,7 +149,7 @@ namespace Proxima
 			{
 				if (!GraphicsPipelines.ContainsKey(shader))
 				{
-					GraphicsPipelines.Add(shader, new GraphicsPipeline(gd, pipeline =>
+					GraphicsPipelines.Add(shader, new VulkanPipeline(gd, pipeline =>
 					{
 						pipeline.SetShader(shader);
 						pipeline.AddVertexBuffer(VertexBuffer);
@@ -161,8 +164,19 @@ namespace Proxima
 			else ActiveShader = defaultShader;
 		}
 
-		public static unsafe void Begin(Matrix4x4 camera, Vector4 color, Shader? shader = null)
+		public static unsafe void Begin(Matrix4x4 camera, Shader? shader = null)
 		{
+			VkCommandBufferInheritanceInfo info = gd.GetInheritanceInfo();
+
+			VkCommandBufferBeginInfo beginInfo = new VkCommandBufferBeginInfo
+			{
+				sType = VkStructureType.CommandBufferBeginInfo,
+				flags = VkCommandBufferUsageFlags.RenderPassContinue | VkCommandBufferUsageFlags.SimultaneousUse,
+				pInheritanceInfo = &info
+			};
+
+			Vulkan.vkBeginCommandBuffer((VkCommandBuffer)currentBuffer, &beginInfo).CheckResult();
+			
 			ChangeShader(shader);
 
 			UniformBufferObject ubo = new UniformBufferObject
@@ -181,31 +195,31 @@ namespace Proxima
 
 			// buffer = gd.Begin(color, gd.CurrentFrameIndex);
 
-			VkCommandBufferAllocateInfo allocateInfo = new VkCommandBufferAllocateInfo
-			{
-				sType = VkStructureType.CommandBufferAllocateInfo,
-				commandPool = gd.CommandPool,
-				level = VkCommandBufferLevel.Secondary,
-				commandBufferCount = 1
-			};
+			// VkCommandBufferAllocateInfo allocateInfo = new VkCommandBufferAllocateInfo
+			// {
+			// 	sType = VkStructureType.CommandBufferAllocateInfo,
+			// 	commandPool = gd.CommandPool,
+			// 	level = VkCommandBufferLevel.Secondary,
+			// 	commandBufferCount = 1
+			// };
+			//
+			// Vulkan.vkAllocateCommandBuffers(gd.LogicalDevice, &allocateInfo, out currentBuffer);
+			//
+			// VkCommandBufferInheritanceInfo info = gd.GetInheritanceInfo();
+			//
+			// VkCommandBufferBeginInfo beginInfo = new VkCommandBufferBeginInfo
+			// {
+			// 	sType = VkStructureType.CommandBufferBeginInfo,
+			// 	flags = VkCommandBufferUsageFlags.RenderPassContinue | VkCommandBufferUsageFlags.SimultaneousUse,
+			// 	pInheritanceInfo = &info
+			// };
+			//
+			// Vulkan.vkBeginCommandBuffer(currentBuffer, &beginInfo).CheckResult();
 
-			Vulkan.vkAllocateCommandBuffers(gd.LogicalDevice, &allocateInfo, out currentBuffer);
-
-			VkCommandBufferInheritanceInfo info = gd.GetInheritanceInfo();
-
-			VkCommandBufferBeginInfo beginInfo = new VkCommandBufferBeginInfo
-			{
-				sType = VkStructureType.CommandBufferBeginInfo,
-				flags = VkCommandBufferUsageFlags.RenderPassContinue | VkCommandBufferUsageFlags.SimultaneousUse,
-				pInheritanceInfo = &info
-			};
-
-			Vulkan.vkBeginCommandBuffer(currentBuffer, &beginInfo).CheckResult();
-
-			GraphicsPipelines[ActiveShader].Bind(currentBuffer);
+			GraphicsPipelines[ActiveShader].Bind((VkCommandBuffer)currentBuffer);
 		}
 
-		private static VkCommandBuffer currentBuffer;
+		private static VulkanCommandBuffer currentBuffer;
 
 		public static void End()
 		{
@@ -215,14 +229,14 @@ namespace Proxima
 			indices.Clear();
 			nextQuadID = 0;
 
-			VertexBuffer.Bind(currentBuffer);
-			IndexBuffer.Bind(currentBuffer);
+			VertexBuffer.Bind((VkCommandBuffer)currentBuffer);
+			IndexBuffer.Bind((VkCommandBuffer)currentBuffer);
 
-			Vulkan.vkCmdDrawIndexed(currentBuffer, IndexBuffer.Length, 1, 0, 0, 0);
+			Vulkan.vkCmdDrawIndexed((VkCommandBuffer)currentBuffer, IndexBuffer.Length, 1, 0, 0, 0);
 
-			Vulkan.vkEndCommandBuffer(currentBuffer).CheckResult();
+			Vulkan.vkEndCommandBuffer((VkCommandBuffer)currentBuffer).CheckResult();
 
-			gd.SubmitSecondaryBuffer(currentBuffer);
+			gd.SubmitSecondaryBuffer((VkCommandBuffer)currentBuffer);
 			// gd.End(buffer);
 		}
 

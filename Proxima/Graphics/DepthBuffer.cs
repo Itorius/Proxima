@@ -2,7 +2,7 @@ using Vortice.Vulkan;
 
 namespace Proxima.Graphics
 {
-	public class DepthBuffer : GraphicsObject
+	public class DepthBuffer : VulkanObject
 	{
 		private VkImage image;
 		private VkDeviceMemory memory;

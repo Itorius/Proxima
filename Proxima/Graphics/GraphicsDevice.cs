@@ -200,7 +200,7 @@ namespace Proxima.Graphics
 		{
 			VkResult result = (VkResult)GLFW.Vulkan.CreateWindowSurface(Instance.Handle, window, IntPtr.Zero, out IntPtr handle);
 			if (result != VkResult.Success) throw new Exception("Failed to create window surface");
-			Surface = new VkSurfaceKHR((ulong)handle.ToInt64());
+			Surface = new VkSurfaceKHR((ulong)handle);
 		}
 
 		private unsafe void CreateFramebuffers()
@@ -238,6 +238,18 @@ namespace Proxima.Graphics
 			};
 
 			Vulkan.vkCreateCommandPool(LogicalDevice, &commandPoolCreateInfo, null, out CommandPool).CheckResult();
+
+			VkCommandBufferAllocateInfo allocateInfo = new VkCommandBufferAllocateInfo
+			{
+				sType = VkStructureType.CommandBufferAllocateInfo,
+				commandPool = CommandPool,
+				level = VkCommandBufferLevel.Primary,
+				commandBufferCount = 1
+			};
+
+			Vulkan.vkAllocateCommandBuffers(LogicalDevice, &allocateInfo, out var buffer);
+			currentBuffer = new VulkanCommandBuffer(this, buffer);
+			currentBuffer.SetName("Primary Buffer");
 		}
 
 		private unsafe void CreateSyncObjects()
@@ -286,6 +298,21 @@ namespace Proxima.Graphics
 
 		private List<VkCommandBuffer> secondary_buffers = new List<VkCommandBuffer>();
 
+		public unsafe VkCommandBuffer GetSecondaryBuffer()
+		{
+			VkCommandBufferAllocateInfo allocateInfo = new VkCommandBufferAllocateInfo
+			{
+				sType = VkStructureType.CommandBufferAllocateInfo,
+				commandPool = CommandPool,
+				level = VkCommandBufferLevel.Secondary,
+				commandBufferCount = 1
+			};
+
+			Vulkan.vkAllocateCommandBuffers(LogicalDevice, &allocateInfo, out var buffer);
+
+			return buffer;
+		}
+
 		public void SubmitSecondaryBuffer(VkCommandBuffer buffer) => secondary_buffers.Add(buffer);
 
 		public VkCommandBufferInheritanceInfo GetInheritanceInfo() => new VkCommandBufferInheritanceInfo
@@ -297,7 +324,16 @@ namespace Proxima.Graphics
 
 		internal unsafe void BeginFrame(Vector4 color)
 		{
-			Vulkan.vkWaitForFences(LogicalDevice, InFlightFences[currentFrame], true, ulong.MaxValue);
+			// Vulkan.vkWaitForFences(LogicalDevice, InFlightFences[currentFrame], true, ulong.MaxValue).CheckResult();
+			// VkResult fenceRes;
+			// do
+			// {
+			// 	Log.Debug(currentFrame);
+			// 	fenceRes = Vulkan.vkWaitForFences(LogicalDevice, InFlightFences[currentFrame], true, ulong.MaxValue);
+			// } while (fenceRes == VkResult.Timeout);
+			// fenceRes.CheckResult();
+			//
+			// Vulkan.vkResetFences(LogicalDevice, InFlightFences[currentFrame]);
 
 			VkResult result = Vulkan.vkAcquireNextImageKHR(LogicalDevice, Swapchain.Swapchain, uint.MaxValue, ImageAvailableSemaphores[currentFrame], VkFence.Null, out var currentFrameIndex);
 			CurrentFrameIndex = currentFrameIndex;
@@ -312,16 +348,6 @@ namespace Proxima.Graphics
 			if (ImagesInFlight[CurrentFrameIndex] != VkFence.Null) Vulkan.vkWaitForFences(LogicalDevice, ImagesInFlight[CurrentFrameIndex], true, uint.MaxValue);
 
 			ImagesInFlight[CurrentFrameIndex] = InFlightFences[currentFrame];
-
-			VkCommandBufferAllocateInfo allocateInfo = new VkCommandBufferAllocateInfo
-			{
-				sType = VkStructureType.CommandBufferAllocateInfo,
-				commandPool = CommandPool,
-				level = VkCommandBufferLevel.Primary,
-				commandBufferCount = 1
-			};
-
-			Vulkan.vkAllocateCommandBuffers(LogicalDevice, &allocateInfo, out currentBuffer);
 
 			VkCommandBufferBeginInfo beginInfo = new VkCommandBufferBeginInfo
 			{
@@ -350,15 +376,15 @@ namespace Proxima.Graphics
 			Vulkan.vkCmdBeginRenderPass(currentBuffer, &renderPassBeginInfo, VkSubpassContents.SecondaryCommandBuffers);
 		}
 
-		private VkCommandBuffer currentBuffer;
+		private VulkanCommandBuffer currentBuffer;
 
 		internal unsafe void EndFrame()
 		{
 			fixed (VkCommandBuffer* ptr = secondary_buffers.GetInternalArray()) Vulkan.vkCmdExecuteCommands(currentBuffer, (uint)secondary_buffers.Count, ptr);
+			Vulkan.vkResetFences(LogicalDevice, InFlightFences[currentFrame]);
 
 			Vulkan.vkCmdEndRenderPass(currentBuffer);
-
-			Vulkan.vkEndCommandBuffer(currentBuffer);
+			Vulkan.vkEndCommandBuffer(currentBuffer).CheckResult();
 
 			VkSemaphore[] waitSemaphores = { ImageAvailableSemaphores[currentFrame] };
 			VkPipelineStageFlags[] waitStages = { VkPipelineStageFlags.ColorAttachmentOutput };
@@ -372,14 +398,20 @@ namespace Proxima.Graphics
 			};
 			fixed (VkSemaphore* ptr = waitSemaphores) submitInfo.pWaitSemaphores = ptr;
 			fixed (VkPipelineStageFlags* ptr = waitStages) submitInfo.pWaitDstStageMask = ptr;
-			fixed (VkCommandBuffer* ptr = &currentBuffer) submitInfo.pCommandBuffers = ptr;
+
+			var tmp = (VkCommandBuffer)currentBuffer;
+			submitInfo.pCommandBuffers = &tmp;
 
 			VkSemaphore[] signalSemaphores = { RenderFinishedSemaphores[currentFrame] };
 			fixed (VkSemaphore* ptr = signalSemaphores) submitInfo.pSignalSemaphores = ptr;
 
-			Vulkan.vkResetFences(LogicalDevice, InFlightFences[currentFrame]);
+			// Vulkan.vkResetFences(LogicalDevice, InFlightFences[currentFrame]);
 
 			Vulkan.vkQueueSubmit(GraphicsQueue, 1, &submitInfo, InFlightFences[currentFrame]).CheckResult();
+
+			// Vulkan.vkResetCommandPool(LogicalDevice, CommandPool, VkCommandPoolResetFlags.None).CheckResult();
+
+			// foreach (var buffer in secondary_buffers) Vulkan.vkResetCommandBuffer(buffer, VkCommandBufferResetFlags.None);
 			secondary_buffers.Clear();
 
 			VkPresentInfoKHR presentInfo = new VkPresentInfoKHR
@@ -405,12 +437,16 @@ namespace Proxima.Graphics
 			}
 			else if (result != VkResult.Success) throw new Exception("Failed to present swapchain image");
 
+			Vulkan.vkWaitForFences(LogicalDevice, InFlightFences[currentFrame], true, ulong.MaxValue);
+
 			currentFrame = (currentFrame + 1) % MaxFramesInFlight;
 		}
 
 		public unsafe void Dispose()
 		{
 			Vulkan.vkDeviceWaitIdle(LogicalDevice);
+
+			Vulkan.vkResetCommandPool(LogicalDevice, CommandPool, VkCommandPoolResetFlags.ReleaseResources).CheckResult();
 
 			foreach (VkFramebuffer framebuffer in Framebuffers) Vulkan.vkDestroyFramebuffer(LogicalDevice, framebuffer, null);
 

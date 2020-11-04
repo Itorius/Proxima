@@ -2,7 +2,7 @@ using Vortice.Vulkan;
 
 namespace Proxima.Graphics
 {
-	public class VulkanRenderPass : GraphicsObject
+	public class VulkanRenderPass : VulkanObject
 	{
 		private VkRenderPass renderPass;
 

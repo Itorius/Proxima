@@ -2,7 +2,7 @@ using Vortice.Vulkan;
 
 namespace Proxima.Graphics
 {
-	public abstract class Texture : GraphicsObject
+	public abstract class Texture : VulkanObject
 	{
 		protected VkImage textureImage;
 		protected VkDeviceMemory textureMemory;

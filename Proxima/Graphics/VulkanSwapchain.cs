@@ -2,7 +2,7 @@ using Vortice.Vulkan;
 
 namespace Proxima.Graphics
 {
-	public class VulkanSwapchain : GraphicsObject
+	public class VulkanSwapchain : VulkanObject
 	{
 		public VkSwapchainKHR Swapchain { get; private set; }
 		public VkFormat Format { get; private set; }

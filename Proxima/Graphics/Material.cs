@@ -2,7 +2,7 @@ using System.Linq;
 
 namespace Proxima.Graphics
 {
-	public class MaterialInstance : GraphicsObject
+	public class MaterialInstance : VulkanObject
 	{
 		public MaterialInstance(GraphicsDevice graphicsDevice) : base(graphicsDevice)
 		{
@@ -13,16 +13,16 @@ namespace Proxima.Graphics
 		}
 	}
 
-	public class Material : GraphicsObject
+	public class Material : VulkanObject
 	{
-		public GraphicsPipeline pipeline;
+		public VulkanPipeline pipeline;
 		public Shader shader;
 
 		public Material(GraphicsDevice graphicsDevice, Shader shader) : base(graphicsDevice)
 		{
 			this.shader = shader;
 
-			pipeline = new GraphicsPipeline(graphicsDevice, pipeline =>
+			pipeline = new VulkanPipeline(graphicsDevice, pipeline =>
 			{
 				foreach (var texture in shader.ReflectionData.Textures)
 				{

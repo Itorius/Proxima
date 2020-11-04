@@ -105,7 +105,7 @@ namespace Proxima.Graphics
 		[JsonPropertyName("textures")] public List<Texture> Textures { get; set; } = new List<Texture>();
 	}
 
-	public class Shader : GraphicsObject
+	public class Shader : VulkanObject
 	{
 		private List<VkShaderModule> shaderModules;
 

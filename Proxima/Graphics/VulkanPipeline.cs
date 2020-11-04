@@ -5,7 +5,7 @@ using Vortice.Vulkan;
 
 namespace Proxima.Graphics
 {
-	public class GraphicsPipeline : GraphicsObject
+	public class VulkanPipeline : VulkanObject
 	{
 		private VkPipelineLayout PipelineLayout;
 		private VkPipeline Pipeline;
@@ -41,7 +41,7 @@ namespace Proxima.Graphics
 			return null;
 		}
 
-		public GraphicsPipeline(GraphicsDevice graphicsDevice, Action<GraphicsPipeline> initialization) : base(graphicsDevice)
+		public VulkanPipeline(GraphicsDevice graphicsDevice, Action<VulkanPipeline> initialization) : base(graphicsDevice)
 		{
 			initialization.Invoke(this);
 

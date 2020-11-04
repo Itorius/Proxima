@@ -51,6 +51,9 @@ namespace Proxima
 
 			Renderer2D.Initialize(GraphicsDevice);
 
+			imguibuffer= new VulkanCommandBuffer(GraphicsDevice, GraphicsDevice.GetSecondaryBuffer());
+			imguibuffer.SetName("ImGui Buffer");
+			
 			OnLoad();
 		}
 
@@ -85,6 +88,8 @@ namespace Proxima
 
 		private Dictionary<Texture, VkDescriptorSet> imguiImageCache = new Dictionary<Texture, VkDescriptorSet>();
 
+		private VulkanCommandBuffer imguibuffer;
+		
 		internal unsafe void Run()
 		{
 			DateTime old = DateTime.Now;
@@ -137,7 +142,7 @@ namespace Proxima
 
 				ImGui.Render();
 				var imDrawDataPtr = ImGui.GetDrawData();
-
+				
 				VkCommandBufferAllocateInfo allocateInfo = new VkCommandBufferAllocateInfo
 				{
 					sType = VkStructureType.CommandBufferAllocateInfo,
@@ -145,22 +150,22 @@ namespace Proxima
 					level = VkCommandBufferLevel.Secondary,
 					commandBufferCount = 1
 				};
-
+				
 				Vortice.Vulkan.Vulkan.vkAllocateCommandBuffers(GraphicsDevice.LogicalDevice, &allocateInfo, out VkCommandBuffer b);
-
+				
 				VkCommandBufferInheritanceInfo info = GraphicsDevice.GetInheritanceInfo();
-
+				
 				VkCommandBufferBeginInfo beginInfo = new VkCommandBufferBeginInfo
 				{
 					sType = VkStructureType.CommandBufferBeginInfo,
 					flags = VkCommandBufferUsageFlags.RenderPassContinue | VkCommandBufferUsageFlags.SimultaneousUse,
 					pInheritanceInfo = &info
 				};
-
+				
 				Vortice.Vulkan.Vulkan.vkBeginCommandBuffer(b, &beginInfo).CheckResult();
-
+				
 				ImGuiController.RenderDrawData(*imDrawDataPtr.NativePtr, b);
-
+				
 				Vortice.Vulkan.Vulkan.vkEndCommandBuffer(b).CheckResult();
 
 				GraphicsDevice.SubmitSecondaryBuffer(b);

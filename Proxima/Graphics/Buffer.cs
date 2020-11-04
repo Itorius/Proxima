@@ -2,7 +2,7 @@ using Vortice.Vulkan;
 
 namespace Proxima.Graphics
 {
-	public abstract class Buffer : GraphicsObject
+	public abstract class Buffer : VulkanObject
 	{
 		public ulong Size { get; protected set; }
 
