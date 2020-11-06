@@ -8,7 +8,7 @@ layout(binding = 1) uniform Settings {
 	float u_Time;
 } settings;
 
-layout(binding = 2) uniform sampler1D texSampler;
+layout(binding = 2) uniform sampler1D gradientTexture;
 
 layout(location = 0) in vec4 inColor;
 layout(location = 1) in vec2 inUV;
@@ -67,6 +67,6 @@ void main() {
 
 	d = clamp(pow(4.0 * d / settings.u_Area.z, 0.2), 0.0, 1.0);
 
-	outColor = texture(texSampler, d);
+	outColor = texture(gradientTexture, d);
 	outColor = vec4(uv, 0.0, 1.0);
 }

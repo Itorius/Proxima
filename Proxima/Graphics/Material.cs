@@ -33,7 +33,7 @@ namespace Proxima.Graphics
 				pipeline.SetShader(shader);
 				pipeline.AddVertexBuffer(Renderer2D.VertexBuffer);
 				pipeline.AddUniformBuffer<Renderer2D.UniformBufferObject>(0);
-				pipeline.AddUniformBuffer<Renderer2D.Data>(1);
+				pipeline.AddUniformBuffer<Renderer2D.MandelbrotData>(1);
 			});
 
 			graphicsDevice.OnInvalidate += pipeline.Invalidate;

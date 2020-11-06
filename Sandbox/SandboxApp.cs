@@ -18,17 +18,17 @@ namespace Sandbox
 		{
 			Title = "Sandbox",
 			Size = new Vector2(1280, 720),
-			VSync = false
+			VSync = true
 		});
 
 		[Profile]
-		public override void OnLoad()
+		protected override void OnLoad()
 		{
 			Shader shader = AssetManager.LoadShader("Mandelbrot", "Assets/Renderer2D.vert", "Assets/Mandelbrot_Dist.frag");
 			material = new Material(GraphicsDevice, shader);
-			material.SetTexture("texSampler", Renderer2D.gradient);
+			material.SetTexture("gradientTexture", Renderer2D.gradient);
 
-			window.MouseScroll += (sender, args) => { scale += (float)(args.Y * 0.1f); };
+			Window.MouseScroll += (sender, args) => { scale += (float)(args.Y * 0.1f); };
 
 			Entity e = Entity.Null;
 
@@ -48,13 +48,13 @@ namespace Sandbox
 
 		private Vector2 pos;
 
-		public override void OnUpdate()
+		protected override void OnUpdate()
 		{
 			float movement = Time.DeltaUpdateTime * 0.1f;
-			if (Glfw.GetKey(window, Keys.W) == InputState.Press) pos.Y -= movement;
-			if (Glfw.GetKey(window, Keys.S) == InputState.Press) pos.Y += movement;
-			if (Glfw.GetKey(window, Keys.A) == InputState.Press) pos.X -= movement;
-			if (Glfw.GetKey(window, Keys.D) == InputState.Press) pos.X += movement;
+			if (Glfw.GetKey(Window, Keys.W) == InputState.Press) pos.Y -= movement;
+			if (Glfw.GetKey(Window, Keys.S) == InputState.Press) pos.Y += movement;
+			if (Glfw.GetKey(Window, Keys.A) == InputState.Press) pos.X -= movement;
+			if (Glfw.GetKey(Window, Keys.D) == InputState.Press) pos.X += movement;
 
 			var view = Registry.View<TransformComponent, ColorComponent>();
 
@@ -69,12 +69,12 @@ namespace Sandbox
 		private float angle;
 		private float scale = 1f;
 
-		public override void OnRender()
+		protected override void OnRender()
 		{
 			Vector4 color = new HslColor(MathF.Sin(Time.TotalUpdateTime) * 0.5f + 0.5f, 1f, 0.5f, 0.1f).ToRGB();
 			color = new Vector4(1f, 1f, 1f, 1f);
 			
-			Matrix4x4 projection = Matrix4x4.CreateOrthographic(window.ClientWidth, window.ClientHeight, -1f, 1f);
+			Matrix4x4 projection = Matrix4x4.CreateOrthographic(Window.ClientWidth, Window.ClientHeight, -1f, 1f);
 			Matrix4x4 view = Matrix4x4.CreateTranslation(MathF.Sin(Time.TotalUpdateTime) * 100f, 0f, 0f);
 			view = Matrix4x4.Identity;
 			//
@@ -114,7 +114,7 @@ namespace Sandbox
 			Renderer2D.End();
 		}
 
-		public override void OnClose()
+		protected override void OnClose()
 		{
 			material.Dispose();
 

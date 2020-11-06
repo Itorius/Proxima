@@ -46,6 +46,7 @@ namespace Proxima
 		private static VkPipelineLayout pipelineLayout;
 		private static VkPipeline pipeline;
 		private static WindowRenderBuffers windowRenderBuffers;
+		private static VulkanCommandBuffer imguiBuffer;
 
 		private unsafe delegate void ImGuiUserCallback(ImDrawList* draw_list, ImDrawCmd* cmd);
 
@@ -53,7 +54,7 @@ namespace Proxima
 
 		private unsafe delegate void SetClipboardText(void* user_data, string text);
 
-		public static unsafe void Initialize(GraphicsDevice graphicsDevice)
+		internal static unsafe void Initialize(GraphicsDevice graphicsDevice)
 		{
 			gd = graphicsDevice;
 
@@ -132,12 +133,16 @@ namespace Proxima
 			CreateDeviceResources();
 
 			CreateFontsTexture();
+
+			imguiBuffer = new VulkanCommandBuffer(gd, gd.GetSecondaryBuffer());
+			imguiBuffer.SetName("ImGui");
 		}
 
 		private static unsafe void ImGuiInitialization()
 		{
 			IntPtr context = ImGui.CreateContext();
 			ImGui.SetCurrentContext(context);
+			ImGui.StyleColorsDark();
 
 			ImGuiIOPtr io = ImGui.GetIO();
 
@@ -226,7 +231,7 @@ namespace Proxima
 			io.Fonts.AddFontDefault(font.ConfigData);
 		}
 
-		public static unsafe VkDescriptorSet AddTexture(VkSampler sampler, VkImageView image_view, VkImageLayout image_layout)
+		internal static unsafe VkDescriptorSet AddTexture(VkSampler sampler, VkImageView image_view, VkImageLayout image_layout)
 		{
 			VkDescriptorSet descriptor_set;
 			VkDescriptorSetAllocateInfo alloc_info = new VkDescriptorSetAllocateInfo
@@ -257,7 +262,7 @@ namespace Proxima
 			return descriptor_set;
 		}
 
-		public static void NewFrame()
+		internal static void NewFrame()
 		{
 			ImGuiIOPtr io = ImGui.GetIO();
 
@@ -284,6 +289,8 @@ namespace Proxima
 				Glfw.SetCursor(gd.window, mouseCursors.ContainsKey(imgui_cursor) ? mouseCursors[imgui_cursor] : mouseCursors[ImGuiMouseCursor.Arrow]);
 				Glfw.SetInputMode(gd.window, InputMode.Cursor, (int)GlfwCursorMode.Normal);
 			}
+
+			ImGui.NewFrame();
 		}
 
 		private static void CreateDeviceResources()
@@ -463,7 +470,7 @@ namespace Proxima
 			io.Fonts.TexID = (IntPtr)font_descriptor_set.Handle;
 		}
 
-		public static unsafe void RenderDrawData(ImDrawData draw_data, VkCommandBuffer command_buffer)
+		private static unsafe void RenderDrawData(ImDrawData draw_data, VkCommandBuffer command_buffer)
 		{
 			int width = (int)(draw_data.DisplaySize.X * draw_data.FramebufferScale.X);
 			int height = (int)(draw_data.DisplaySize.Y * draw_data.FramebufferScale.Y);
@@ -584,11 +591,23 @@ namespace Proxima
 			float[] translate = new float[2];
 			translate[0] = -1f - draw_data.DisplayPos.X * scale[0];
 			translate[1] = -1f - draw_data.DisplayPos.Y * scale[1];
-			fixed (float* ptr = scale) Vulkan.vkCmdPushConstants(command_buffer, pipelineLayout, VkShaderStageFlags.Vertex,  0, sizeof(float) * 2, ptr);
+			fixed (float* ptr = scale) Vulkan.vkCmdPushConstants(command_buffer, pipelineLayout, VkShaderStageFlags.Vertex, 0, sizeof(float) * 2, ptr);
 			fixed (float* ptr = translate) Vulkan.vkCmdPushConstants(command_buffer, pipelineLayout, VkShaderStageFlags.Vertex, sizeof(float) * 2, sizeof(float) * 2, ptr);
 		}
 
-		public static unsafe void Dispose()
+		internal static unsafe void Draw()
+		{
+			ImGui.Render();
+			var imDrawDataPtr = ImGui.GetDrawData();
+
+			imguiBuffer.Begin(VkCommandBufferUsageFlags.RenderPassContinue | VkCommandBufferUsageFlags.SimultaneousUse, gd.GetInheritanceInfo());
+			RenderDrawData(*imDrawDataPtr.NativePtr, imguiBuffer);
+			imguiBuffer.End();
+
+			gd.SubmitSecondaryBuffer(imguiBuffer);
+		}
+
+		internal static unsafe void Dispose()
 		{
 			for (ImGuiMouseCursor i = 0; i < ImGuiMouseCursor.COUNT; i++)
 			{

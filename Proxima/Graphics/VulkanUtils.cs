@@ -227,10 +227,10 @@ namespace Proxima.Graphics
 			return formats[0];
 		}
 
-		public static VkPresentModeKHR SelectSwapPresentMode(IReadOnlyList<VkPresentModeKHR> presentModes)
+		public static VkPresentModeKHR SelectSwapPresentMode(IEnumerable<VkPresentModeKHR> presentModes, bool vsync)
 		{
-			// return VkPresentModeKHR.Immediate;
-
+			if (!vsync) return VkPresentModeKHR.Immediate;
+			
 			foreach (VkPresentModeKHR presentMode in presentModes)
 			{
 				if (presentMode == VkPresentModeKHR.Mailbox) return presentMode;

@@ -21,7 +21,7 @@ namespace Proxima.Graphics
 			var (capabilities, formats, presentModes) = VulkanUtils.QuerySwapchainSupport(graphicsDevice.PhysicalDevice, graphicsDevice.Surface);
 
 			VkSurfaceFormatKHR surfaceFormat = VulkanUtils.SelectSwapSurfaceFormat(formats);
-			VkPresentModeKHR presentMode = VulkanUtils.SelectSwapPresentMode(presentModes);
+			VkPresentModeKHR presentMode = VulkanUtils.SelectSwapPresentMode(presentModes, graphicsDevice.vsync);
 			VkExtent2D extent = VulkanUtils.SelectSwapExtent(capabilities, graphicsDevice.window);
 
 			uint imageCount = capabilities.minImageCount + 1;

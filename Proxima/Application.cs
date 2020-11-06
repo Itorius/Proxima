@@ -20,8 +20,8 @@ namespace Proxima
 			public bool VSync;
 		}
 
-		protected NativeWindow window;
-		protected GraphicsDevice GraphicsDevice;
+		protected readonly NativeWindow Window;
+		protected readonly GraphicsDevice GraphicsDevice;
 
 		public Application(Options options)
 		{
@@ -29,15 +29,15 @@ namespace Proxima
 			if (!Vulkan.IsSupported) throw new Exception("GLFW does not support Vulkan");
 
 			Glfw.WindowHint(Hint.ClientApi, ClientApi.None);
-			Log.Debug(Glfw.Version);
 
-			window = new NativeWindow((int)options.Size.X, (int)options.Size.Y, options.Title, Monitor.None, Window.None);
-			window.KeyPress += (sender, args) =>
+			Window = new NativeWindow((int)options.Size.X, (int)options.Size.Y, options.Title, Monitor.None, GLFW.Window.None);
+			Window.KeyPress += (sender, args) =>
 			{
-				if (args.Key == Keys.Escape) Glfw.SetWindowShouldClose(window, true);
+				if (args.Key == Keys.Escape) Glfw.SetWindowShouldClose(Window, true);
 			};
 
-			GraphicsDevice = new GraphicsDevice(window);
+			GraphicsDevice = new GraphicsDevice(Window);
+			GraphicsDevice.SetVerticalSync(options.VSync);
 
 			#if ENABLE_VALIDATION
 			GraphicsDevice.EnableValidation();
@@ -51,9 +51,6 @@ namespace Proxima
 
 			Renderer2D.Initialize(GraphicsDevice);
 
-			imguibuffer= new VulkanCommandBuffer(GraphicsDevice, GraphicsDevice.GetSecondaryBuffer());
-			imguibuffer.SetName("ImGui Buffer");
-			
 			OnLoad();
 		}
 
@@ -64,37 +61,35 @@ namespace Proxima
 			AssetManager.Dispose();
 			GraphicsDevice.Dispose();
 
-			Glfw.DestroyWindow(window);
+			Glfw.DestroyWindow(Window);
 			Glfw.Terminate();
 
 			LogManager.Shutdown();
 		}
 
-		public virtual void OnUpdate()
+		protected virtual void OnUpdate()
 		{
 		}
 
-		public virtual void OnRender()
+		protected virtual void OnRender()
 		{
 		}
 
-		public virtual void OnLoad()
+		protected virtual void OnLoad()
 		{
 		}
 
-		public virtual void OnClose()
+		protected virtual void OnClose()
 		{
 		}
 
 		private Dictionary<Texture, VkDescriptorSet> imguiImageCache = new Dictionary<Texture, VkDescriptorSet>();
 
-		private VulkanCommandBuffer imguibuffer;
-		
-		internal unsafe void Run()
+		internal void Run()
 		{
 			DateTime old = DateTime.Now;
 
-			while (!Glfw.WindowShouldClose(window))
+			while (!Glfw.WindowShouldClose(Window))
 			{
 				DateTime now = DateTime.Now;
 				TimeSpan diff = now - old;
@@ -103,13 +98,22 @@ namespace Proxima
 				Time.DeltaUpdateTime = (float)diff.TotalSeconds;
 				Time.TotalUpdateTime += Time.DeltaUpdateTime;
 
-				window.Title = $"Sandbox ({1 / Time.DeltaUpdateTime:F1} FPS)";
+				Window.Title = $"Sandbox ({1 / Time.DeltaUpdateTime:F1} FPS)";
 
 				Glfw.PollEvents();
 
 				ImGuiController.NewFrame();
 
-				ImGui.NewFrame();
+				if (ImGui.Begin("Graphics Device Properties"))
+				{
+					ImGui.Text("Vulkan v" + Vortice.Vulkan.Vulkan.vkEnumerateInstanceVersion());
+					ImGui.Text("GLFW v" + Glfw.Version);
+
+					ImGui.Separator();
+
+					ImGui.Text(GraphicsDevice.PhysicalDevice.Name);
+					ImGui.End();
+				}
 
 				if (ImGui.Begin("Asset Manager"))
 				{
@@ -133,42 +137,12 @@ namespace Proxima
 					ImGui.End();
 				}
 
-				// ImGui.ShowDemoWindow();
-
-				GraphicsDevice.BeginFrame(new Vector4(0.1f, 0.1f, 0.1f, 1f));
+				GraphicsDevice.BeginFrame(new Vector4(0.03f, 0.03f, 0.03f, 1f));
 
 				OnUpdate();
 				OnRender();
 
-				ImGui.Render();
-				var imDrawDataPtr = ImGui.GetDrawData();
-				
-				VkCommandBufferAllocateInfo allocateInfo = new VkCommandBufferAllocateInfo
-				{
-					sType = VkStructureType.CommandBufferAllocateInfo,
-					commandPool = GraphicsDevice.CommandPool,
-					level = VkCommandBufferLevel.Secondary,
-					commandBufferCount = 1
-				};
-				
-				Vortice.Vulkan.Vulkan.vkAllocateCommandBuffers(GraphicsDevice.LogicalDevice, &allocateInfo, out VkCommandBuffer b);
-				
-				VkCommandBufferInheritanceInfo info = GraphicsDevice.GetInheritanceInfo();
-				
-				VkCommandBufferBeginInfo beginInfo = new VkCommandBufferBeginInfo
-				{
-					sType = VkStructureType.CommandBufferBeginInfo,
-					flags = VkCommandBufferUsageFlags.RenderPassContinue | VkCommandBufferUsageFlags.SimultaneousUse,
-					pInheritanceInfo = &info
-				};
-				
-				Vortice.Vulkan.Vulkan.vkBeginCommandBuffer(b, &beginInfo).CheckResult();
-				
-				ImGuiController.RenderDrawData(*imDrawDataPtr.NativePtr, b);
-				
-				Vortice.Vulkan.Vulkan.vkEndCommandBuffer(b).CheckResult();
-
-				GraphicsDevice.SubmitSecondaryBuffer(b);
+				ImGuiController.Draw();
 
 				GraphicsDevice.EndFrame();
 			}
