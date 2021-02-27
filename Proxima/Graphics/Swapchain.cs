@@ -2,16 +2,16 @@ using Vortice.Vulkan;
 
 namespace Proxima.Graphics
 {
-	public class VulkanSwapchain : VulkanObject
+	public class Swapchain : VulkanObject
 	{
-		public VkSwapchainKHR Swapchain { get; private set; }
+		public VkSwapchainKHR swapchain { get; private set; }
 		public VkFormat Format { get; private set; }
 		public VkExtent2D Extent { get; private set; }
 		public VkImage[] Images { get; private set; }
 		public VkImageView[] ImageViews { get; private set; }
 		public uint Length { get; private set; }
 
-		public VulkanSwapchain(GraphicsDevice graphicsDevice) : base(graphicsDevice)
+		public Swapchain(GraphicsDevice graphicsDevice) : base(graphicsDevice)
 		{
 			Create();
 		}
@@ -59,9 +59,9 @@ namespace Proxima.Graphics
 			}
 
 			Vulkan.vkCreateSwapchainKHR(graphicsDevice.LogicalDevice, &createInfo, null, out var swapchain).CheckResult();
-			Swapchain = swapchain;
+			this.swapchain = swapchain;
 
-			Images = Vulkan.vkGetSwapchainImagesKHR(graphicsDevice.LogicalDevice, Swapchain).ToArray();
+			Images = Vulkan.vkGetSwapchainImagesKHR(graphicsDevice.LogicalDevice, this.swapchain).ToArray();
 			Length = (uint)Images.Length;
 
 			Format = surfaceFormat.format;
@@ -96,7 +96,7 @@ namespace Proxima.Graphics
 		{
 			foreach (VkImageView imageView in ImageViews) Vulkan.vkDestroyImageView(graphicsDevice.LogicalDevice, imageView, null);
 
-			Vulkan.vkDestroySwapchainKHR(graphicsDevice.LogicalDevice, Swapchain, null);
+			Vulkan.vkDestroySwapchainKHR(graphicsDevice.LogicalDevice, swapchain, null);
 		}
 
 		public void Invalidate()

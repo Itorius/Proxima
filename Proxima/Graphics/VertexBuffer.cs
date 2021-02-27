@@ -130,15 +130,15 @@ namespace Proxima.Graphics
 
 		public unsafe void Unmap()
 		{
-			if(sb == VkBuffer.Null|| sbm == VkDeviceMemory.Null)throw new Exception("Attemped to unmap a buffer that has not been mapped");
-			
+			if (sb == VkBuffer.Null || sbm == VkDeviceMemory.Null) throw new Exception("Attemped to unmap a buffer that has not been mapped");
+
 			Vulkan.vkUnmapMemory(graphicsDevice.LogicalDevice, sbm);
 
 			VulkanUtils.CopyBuffer(graphicsDevice, sb, buffer, Size);
 
 			Vulkan.vkDestroyBuffer(graphicsDevice.LogicalDevice, sb, null);
 			Vulkan.vkFreeMemory(graphicsDevice.LogicalDevice, sbm, null);
-			
+
 			sb = VkBuffer.Null;
 			sbm = VkDeviceMemory.Null;
 		}

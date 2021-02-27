@@ -24,9 +24,9 @@ namespace Sandbox
 		[Profile]
 		protected override void OnLoad()
 		{
-			Shader shader = AssetManager.LoadShader("Mandelbrot", "Assets/Renderer2D.vert", "Assets/Mandelbrot_Dist.frag");
-			material = new Material(GraphicsDevice, shader);
-			material.SetTexture("gradientTexture", Renderer2D.gradient);
+			// Shader shader = AssetManager.LoadShader("Mandelbrot", "Assets/Renderer2D.vert", "Assets/Mandelbrot_Dist.frag");
+			// material = new Material(GraphicsDevice, shader);
+			// material.SetTexture("gradientTexture", Renderer2D.gradient);
 
 			Window.MouseScroll += (sender, args) => { scale += (float)(args.Y * 0.1f); };
 
@@ -50,11 +50,12 @@ namespace Sandbox
 
 		protected override void OnUpdate()
 		{
-			float movement = Time.DeltaUpdateTime * 0.1f;
-			if (Glfw.GetKey(Window, Keys.W) == InputState.Press) pos.Y -= movement;
-			if (Glfw.GetKey(Window, Keys.S) == InputState.Press) pos.Y += movement;
-			if (Glfw.GetKey(Window, Keys.A) == InputState.Press) pos.X -= movement;
-			if (Glfw.GetKey(Window, Keys.D) == InputState.Press) pos.X += movement;
+			float movement = Time.DeltaUpdateTime * 100f;
+
+			if (Input.IsKeyDown(Keys.W)) pos.Y += movement;
+			if (Input.IsKeyDown(Keys.S)) pos.Y -= movement;
+			if (Input.IsKeyDown(Keys.A)) pos.X += movement;
+			if (Input.IsKeyDown(Keys.D)) pos.X -= movement;
 
 			var view = Registry.View<TransformComponent, ColorComponent>();
 
@@ -64,7 +65,7 @@ namespace Sandbox
 			}
 		}
 
-		private Material material;
+		// private Material material;
 
 		private float angle;
 		private float scale = 1f;
@@ -73,11 +74,10 @@ namespace Sandbox
 		{
 			Vector4 color = new HslColor(MathF.Sin(Time.TotalUpdateTime) * 0.5f + 0.5f, 1f, 0.5f, 0.1f).ToRGB();
 			color = new Vector4(1f, 1f, 1f, 1f);
-			
+
 			Matrix4x4 projection = Matrix4x4.CreateOrthographic(Window.ClientWidth, Window.ClientHeight, -1f, 1f);
-			Matrix4x4 view = Matrix4x4.CreateTranslation(MathF.Sin(Time.TotalUpdateTime) * 100f, 0f, 0f);
-			view = Matrix4x4.Identity;
-			//
+			Matrix4x4 view = Matrix4x4.CreateTranslation(pos.X, pos.Y, 0f);
+
 			// // angle += Time.DeltaUpdateTime * 0.1f;
 			// // material.SetUniformBufferData("settings", new Renderer2D.Data
 			// // {
@@ -87,7 +87,7 @@ namespace Sandbox
 			// // 	u_Time = 0f
 			// // });
 			//
-			Renderer2D.Begin(view * projection/*, material*/);
+			Renderer2D.Begin(view * projection /*, material*/);
 			// // Renderer2D.DrawQuad(new Vector3(0f, 0f, -0.1f), new Vector2(window.ClientWidth, window.ClientHeight), Vector4.One);
 			//
 			// const int toms = 25;
@@ -98,7 +98,7 @@ namespace Sandbox
 			// 	float y = MathF.Sin(angle) * 250f;
 			// 	Renderer2D.DrawQuad(new Vector2(x, y), new Vector2(100f), color);
 			// }
-			
+
 			for (int x = 0; x < 10; x++)
 			{
 				for (int y = 0; y < 10; y++)
@@ -106,7 +106,7 @@ namespace Sandbox
 					Renderer2D.DrawQuad(new Vector2(x, y) * 110f, new Vector2(100f), color);
 				}
 			}
-			
+
 			//
 			// // Renderer2D.DrawQuad(new Vector3(-200f, 0f, 0.1f), new Vector2(500f), new Vector4(0.9f, 0.1f, 0.1f, 0.3f));
 			// // Renderer2D.DrawQuad(new Vector3(200f, 0f, 0.1f), new Vector2(500f), new Vector4(0.9f, 0.1f, 0.1f, 0.3f));
@@ -116,7 +116,7 @@ namespace Sandbox
 
 		protected override void OnClose()
 		{
-			material.Dispose();
+			// material.Dispose();
 
 			Console.ForegroundColor = ConsoleColor.Yellow;
 			foreach ((string key, List<double> value) in ProfileWeaver.profileData) Console.WriteLine($"Mean execution time of '{key}': {value.Average():F2} ms");

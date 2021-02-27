@@ -2,13 +2,13 @@ using Vortice.Vulkan;
 
 namespace Proxima.Graphics
 {
-	public class VulkanRenderPass : VulkanObject
+	public class RenderPass : VulkanObject
 	{
 		private VkRenderPass renderPass;
 
-		public static explicit operator VkRenderPass(VulkanRenderPass renderPass) => renderPass.renderPass;
+		public static explicit operator VkRenderPass(RenderPass renderPass) => renderPass.renderPass;
 		
-		public unsafe VulkanRenderPass(GraphicsDevice graphicsDevice, VkFormat surfaceFormatFormat) : base(graphicsDevice)
+		public unsafe RenderPass(GraphicsDevice graphicsDevice, VkFormat surfaceFormatFormat) : base(graphicsDevice)
 		{
 			VkAttachmentDescription colorAttachment = new VkAttachmentDescription
 			{

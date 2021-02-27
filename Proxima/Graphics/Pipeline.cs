@@ -5,13 +5,13 @@ using Vortice.Vulkan;
 
 namespace Proxima.Graphics
 {
-	public class VulkanPipeline : VulkanObject
+	public class Pipeline : VulkanObject
 	{
-		private VkPipelineLayout PipelineLayout;
-		private VkPipeline Pipeline;
-		private VkDescriptorSetLayout DescriptorSetLayout;
-		private VkDescriptorPool DescriptorPool;
-		private VkDescriptorSet[] DescriptorSets;
+		private VkPipelineLayout pipelineLayout;
+		private VkPipeline pipeline;
+		private VkDescriptorSetLayout descriptorSetLayout;
+		private VkDescriptorPool descriptorPool;
+		private VkDescriptorSet[] descriptorSets;
 
 		public UniformBuffer GetBuffer(uint binding)
 		{
@@ -41,7 +41,7 @@ namespace Proxima.Graphics
 			return null;
 		}
 
-		public VulkanPipeline(GraphicsDevice graphicsDevice, Action<VulkanPipeline> initialization) : base(graphicsDevice)
+		public Pipeline(GraphicsDevice graphicsDevice, Action<Pipeline> initialization) : base(graphicsDevice)
 		{
 			initialization.Invoke(this);
 
@@ -49,9 +49,9 @@ namespace Proxima.Graphics
 		}
 
 		private List<UniformBuffer[]> UniformBuffers;
-		private List<VertexBuffer> vertexBuffers = new List<VertexBuffer>();
-		private Dictionary<uint, Type> uniformBufferTypes = new Dictionary<uint, Type>();
-		public Dictionary<uint, Texture> textures = new Dictionary<uint, Texture>();
+		private List<VertexBuffer> vertexBuffers = new();
+		private Dictionary<uint, Type> uniformBufferTypes = new();
+		private Dictionary<uint, Texture> textures = new();
 		private Shader shader;
 
 		public void SetShader(Shader shader)
@@ -86,7 +86,7 @@ namespace Proxima.Graphics
 
 			CreateDescriptorSetLayout();
 			CreateDescriptorSets();
-
+			
 			CreateGraphicsPipeline();
 		}
 
@@ -124,7 +124,7 @@ namespace Proxima.Graphics
 			};
 			fixed (VkDescriptorSetLayoutBinding* ptr = bindings.GetInternalArray()) layoutCreateInfo.pBindings = ptr;
 
-			Vulkan.vkCreateDescriptorSetLayout(graphicsDevice.LogicalDevice, &layoutCreateInfo, null, out DescriptorSetLayout).CheckResult();
+			Vulkan.vkCreateDescriptorSetLayout(graphicsDevice.LogicalDevice, &layoutCreateInfo, null, out descriptorSetLayout).CheckResult();
 			#endregion
 
 			#region Create descriptor pool
@@ -142,25 +142,25 @@ namespace Proxima.Graphics
 			};
 			fixed (VkDescriptorPoolSize* ptr = poolSizes.GetInternalArray()) poolCreateInfo.pPoolSizes = ptr;
 
-			Vulkan.vkCreateDescriptorPool(graphicsDevice.LogicalDevice, &poolCreateInfo, null, out DescriptorPool).CheckResult();
+			Vulkan.vkCreateDescriptorPool(graphicsDevice.LogicalDevice, &poolCreateInfo, null, out descriptorPool).CheckResult();
 			#endregion
 		}
 
 		private unsafe void CreateDescriptorSets()
 		{
 			#region Allocate sets
-			VkDescriptorSetLayout[] layouts = Enumerable.Repeat(DescriptorSetLayout, (int)graphicsDevice.Swapchain.Length).ToArray();
+			VkDescriptorSetLayout[] layouts = Enumerable.Repeat(descriptorSetLayout, (int)graphicsDevice.Swapchain.Length).ToArray();
 
 			VkDescriptorSetAllocateInfo allocateInfo = new VkDescriptorSetAllocateInfo
 			{
 				sType = VkStructureType.DescriptorSetAllocateInfo,
-				descriptorPool = DescriptorPool,
+				descriptorPool = descriptorPool,
 				descriptorSetCount = graphicsDevice.Swapchain.Length
 			};
 			fixed (VkDescriptorSetLayout* ptr = layouts) allocateInfo.pSetLayouts = ptr;
 
-			DescriptorSets = new VkDescriptorSet[graphicsDevice.Swapchain.Length];
-			fixed (VkDescriptorSet* ptr = DescriptorSets) Vulkan.vkAllocateDescriptorSets(graphicsDevice.LogicalDevice, &allocateInfo, ptr).CheckResult();
+			descriptorSets = new VkDescriptorSet[graphicsDevice.Swapchain.Length];
+			fixed (VkDescriptorSet* ptr = descriptorSets) Vulkan.vkAllocateDescriptorSets(graphicsDevice.LogicalDevice, &allocateInfo, ptr).CheckResult();
 			#endregion
 
 			UpdateDescriptorSets();
@@ -168,10 +168,10 @@ namespace Proxima.Graphics
 
 		public unsafe void UpdateDescriptorSets()
 		{
-			for (int i = 0; i < DescriptorSets.Length; i++)
+			for (int i = 0; i < descriptorSets.Length; i++)
 			{
 				int i1 = i;
-				ref var descriptorSet = ref DescriptorSets[i];
+				ref var descriptorSet = ref descriptorSets[i];
 
 				VkDescriptorBufferInfo[] bufferInfos = new VkDescriptorBufferInfo[UniformBuffers.Count];
 				uniformBufferTypes.ForEach((j, pair) => bufferInfos[j] = new VkDescriptorBufferInfo
@@ -336,10 +336,10 @@ namespace Proxima.Graphics
 				pushConstantRangeCount = 0,
 				pPushConstantRanges = null
 			};
-			fixed (VkDescriptorSetLayout* ptr = &DescriptorSetLayout) pipelineLayoutCreateInfo.pSetLayouts = ptr;
+			fixed (VkDescriptorSetLayout* ptr = &descriptorSetLayout) pipelineLayoutCreateInfo.pSetLayouts = ptr;
 
 			Vulkan.vkCreatePipelineLayout(graphicsDevice.LogicalDevice, &pipelineLayoutCreateInfo, null, out var pipelineLayout).CheckResult();
-			PipelineLayout = pipelineLayout;
+			this.pipelineLayout = pipelineLayout;
 
 			VkPipelineDepthStencilStateCreateInfo depthStencil = new VkPipelineDepthStencilStateCreateInfo
 			{
@@ -362,7 +362,7 @@ namespace Proxima.Graphics
 				pDepthStencilState = &depthStencil,
 				pColorBlendState = &colorBlending,
 				pDynamicState = null,
-				layout = PipelineLayout,
+				layout = this.pipelineLayout,
 				renderPass = (VkRenderPass)graphicsDevice.RenderPass,
 				subpass = 0,
 				basePipelineHandle = VkPipeline.Null,
@@ -373,7 +373,7 @@ namespace Proxima.Graphics
 			fixed (VkPipelineShaderStageCreateInfo* ptr = shader.Stages.GetInternalArray()) pipelineCreateInfo.pStages = ptr;
 
 			Vulkan.vkCreateGraphicsPipeline(graphicsDevice.LogicalDevice, VkPipelineCache.Null, pipelineCreateInfo, out var pipeline).CheckResult();
-			Pipeline = pipeline;
+			this.pipeline = pipeline;
 		}
 
 		public void Invalidate()
@@ -385,18 +385,18 @@ namespace Proxima.Graphics
 
 		public override unsafe void Dispose()
 		{
-			Vulkan.vkDestroyDescriptorPool(graphicsDevice.LogicalDevice, DescriptorPool, null);
-			Vulkan.vkDestroyDescriptorSetLayout(graphicsDevice.LogicalDevice, DescriptorSetLayout, null);
-			Vulkan.vkDestroyPipeline(graphicsDevice.LogicalDevice, Pipeline, null);
-			Vulkan.vkDestroyPipelineLayout(graphicsDevice.LogicalDevice, PipelineLayout, null);
+			Vulkan.vkDestroyDescriptorPool(graphicsDevice.LogicalDevice, descriptorPool, null);
+			Vulkan.vkDestroyDescriptorSetLayout(graphicsDevice.LogicalDevice, descriptorSetLayout, null);
+			Vulkan.vkDestroyPipeline(graphicsDevice.LogicalDevice, pipeline, null);
+			Vulkan.vkDestroyPipelineLayout(graphicsDevice.LogicalDevice, pipelineLayout, null);
 
 			foreach (UniformBuffer buffer in UniformBuffers.SelectMany(buffers => buffers)) buffer.Dispose();
 		}
 
 		public void Bind(VkCommandBuffer buffer)
 		{
-			Vulkan.vkCmdBindDescriptorSets(buffer, VkPipelineBindPoint.Graphics, PipelineLayout, 0, DescriptorSets[graphicsDevice.CurrentFrameIndex]);
-			Vulkan.vkCmdBindPipeline(buffer, VkPipelineBindPoint.Graphics, Pipeline);
+			Vulkan.vkCmdBindDescriptorSets(buffer, VkPipelineBindPoint.Graphics, pipelineLayout, 0, descriptorSets[graphicsDevice.CurrentFrameIndex]);
+			Vulkan.vkCmdBindPipeline(buffer, VkPipelineBindPoint.Graphics, pipeline);
 		}
 	}
 }

@@ -194,6 +194,8 @@ namespace Proxima
 			gd.window.KeyAction += (sender, args) =>
 			{
 				ImGuiIOPtr io = ImGui.GetIO();
+				if (!io.WantCaptureKeyboard) return;
+				
 				if (args.State == InputState.Press) io.KeysDown[(int)args.Key] = true;
 				else if (args.State == InputState.Release) io.KeysDown[(int)args.Key] = false;
 

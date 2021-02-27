@@ -59,10 +59,10 @@ namespace Proxima
 
 		// private static VkCommandBuffer buffer;
 
-		public static Dictionary<Shader, VulkanPipeline> GraphicsPipelines;
+		public static Dictionary<Shader, Pipeline> GraphicsPipelines;
 
-		private static List<Vertex> vertices = new List<Vertex>();
-		private static List<uint> indices = new List<uint>();
+		private static List<Vertex> vertices = new();
+		private static List<uint> indices = new();
 		internal static VertexBuffer<Vertex> VertexBuffer;
 		private static IndexBuffer<uint> IndexBuffer;
 		private static Shader defaultShader;
@@ -98,10 +98,10 @@ namespace Proxima
 			PlaceholderTexture = AssetManager.LoadTexture2D("Assets/Placeholder.png");
 			PlaceholderTexture1D = AssetManager.LoadTexture1D("Assets/Placeholder1D.png");
 
-			GraphicsPipelines = new Dictionary<Shader, VulkanPipeline>
+			GraphicsPipelines = new Dictionary<Shader, Pipeline>
 			{
 				{
-					defaultShader, new VulkanPipeline(gd, pipeline =>
+					defaultShader, new Pipeline(gd, pipeline =>
 					{
 						pipeline.SetShader(defaultShader);
 						pipeline.AddVertexBuffer(VertexBuffer);
@@ -127,22 +127,6 @@ namespace Proxima
 			public int u_MaxIterations;
 			public float u_Angle;
 			public float u_Time;
-		}
-
-		public static void Begin(Matrix4x4 camera, Material material)
-		{
-			ActiveShader = material.shader;
-			GraphicsPipelines.TryAdd(material.shader, material.pipeline);
-		
-			UniformBufferObject ubo = new UniformBufferObject
-			{
-				Camera = camera
-			};
-		
-			material.pipeline.GetBuffer<UniformBufferObject>().SetData(ubo);
-		
-			currentBuffer.Begin(VkCommandBufferUsageFlags.RenderPassContinue | VkCommandBufferUsageFlags.SimultaneousUse, gd.GetInheritanceInfo());
-			GraphicsPipelines[ActiveShader].Bind(currentBuffer);
 		}
 
 		public static void Begin(Matrix4x4 camera)

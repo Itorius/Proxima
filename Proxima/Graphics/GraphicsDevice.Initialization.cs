@@ -35,9 +35,9 @@ namespace Proxima.Graphics
 
 			VkSurfaceFormatKHR surfaceFormat = VulkanUtils.SelectSwapSurfaceFormat(formats);
 
-			RenderPass = new VulkanRenderPass(this, surfaceFormat.format);
+			RenderPass = new RenderPass(this, surfaceFormat.format);
 
-			Swapchain = new VulkanSwapchain(this);
+			Swapchain = new Swapchain(this);
 
 			DepthBuffer = new DepthBuffer(this, Swapchain.Extent);
 			CreateFramebuffers();
@@ -163,26 +163,22 @@ namespace Proxima.Graphics
 			Surface = new VkSurfaceKHR((ulong)handle);
 		}
 
-		private unsafe void CreateFramebuffers()
+		private void CreateFramebuffers()
 		{
-			Framebuffers = new VkFramebuffer[Swapchain.Length];
+			Framebuffers = new FrameBuffer[Swapchain.Length];
 
 			for (int i = 0; i < Swapchain.Length; i++)
 			{
 				VkImageView[] attachments = { Swapchain.ImageViews[i], DepthBuffer.View };
 
-				VkFramebufferCreateInfo framebufferCreateInfo = new VkFramebufferCreateInfo
+				Framebuffers[i] = new FrameBuffer(this, new FrameBufferOptions
 				{
-					sType = VkStructureType.FramebufferCreateInfo,
-					renderPass = (VkRenderPass)RenderPass,
-					attachmentCount = (uint)attachments.Length,
-					width = Swapchain.Extent.width,
-					height = Swapchain.Extent.height,
-					layers = 1
-				};
-				fixed (VkImageView* ptr = attachments) framebufferCreateInfo.pAttachments = ptr;
-
-				Vulkan.vkCreateFramebuffer(LogicalDevice, &framebufferCreateInfo, null, out Framebuffers[i]).CheckResult();
+					Attachments = attachments.ToList(),
+					RenderPass = RenderPass,
+					Width = Swapchain.Extent.width,
+					Height = Swapchain.Extent.height,
+					Layers = 1
+				});
 			}
 		}
 
@@ -234,7 +230,7 @@ namespace Proxima.Graphics
 			}
 		}
 
-		private unsafe void RecreateSwapchain()
+		private void RecreateSwapchain()
 		{
 			while (window.Size.Width == 0 || window.Size.Height == 0) Glfw.WaitEvents();
 
@@ -243,11 +239,16 @@ namespace Proxima.Graphics
 			Swapchain.Invalidate();
 			RenderPass.Invalidate();
 
-			foreach (VkFramebuffer framebuffer in Framebuffers) Vulkan.vkDestroyFramebuffer(LogicalDevice, framebuffer, null);
-
 			DepthBuffer.Invalidate(Swapchain.Extent);
 
-			CreateFramebuffers();
+			for (int i = 0; i < Framebuffers.Length; i++)
+			{
+				FrameBuffer framebuffer = Framebuffers[i];
+				framebuffer.options.Attachments = new List<VkImageView> { Swapchain.ImageViews[i], DepthBuffer.View };
+				framebuffer.Resize(Swapchain.Extent.width, Swapchain.Extent.height);
+			}
+
+			// CreateFramebuffers();
 
 			OnInvalidate.Invoke();
 		}

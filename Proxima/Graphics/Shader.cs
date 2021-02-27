@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using shaderc;
@@ -105,6 +106,47 @@ namespace Proxima.Graphics
 		[JsonPropertyName("textures")] public List<Texture> Textures { get; set; } = new List<Texture>();
 	}
 
+	public sealed class VString : IDisposable
+	{
+		private readonly GCHandle _handle;
+		private static List<VString> strings = new();
+
+		public VString(string str)
+		{
+			var data = Encoding.UTF8.GetBytes(str);
+			_handle = GCHandle.Alloc(data, GCHandleType.Pinned);
+			Size = data.Length;
+			
+			strings.Add(this);
+		}
+
+		~VString()
+		{
+			Dispose();
+		}
+
+		public void Dispose()
+		{
+			strings.Remove(this);
+			
+			if (_handle.IsAllocated)
+				_handle.Free();
+		}
+
+		public unsafe byte* Pointer => (byte*)_handle.AddrOfPinnedObject().ToPointer();
+		public readonly int Size;
+
+		private unsafe string GetString()
+		{
+			return Encoding.UTF8.GetString(Pointer, Size);
+		}
+
+		public static unsafe implicit operator byte*(VString value) => value.Pointer;
+		public static unsafe implicit operator IntPtr(VString value) => new(value.Pointer);
+		public static implicit operator VString(string str) => new(str);
+		public static implicit operator string(VString str) => str.GetString();
+	}
+
 	public class Shader : VulkanObject
 	{
 		private List<VkShaderModule> shaderModules;
@@ -162,7 +204,7 @@ namespace Proxima.Graphics
 						sType = VkStructureType.PipelineShaderStageCreateInfo,
 						stage = stage,
 						module = module,
-						pName = new VkString(entryPoint.Name)
+						pName = new VString(entryPoint.Name)
 					};
 					Stages.Add(shaderStageCreateInfo);
 				}
@@ -177,7 +219,7 @@ namespace Proxima.Graphics
 						Binding = buffer.GetDecoration(compiler, SpirvDecoration.Binding),
 						Set = buffer.GetDecoration(compiler, SpirvDecoration.DescriptorSet),
 						Stage = stage,
-						Name = buffer.GetName(compiler),
+						Name = buffer.GetName(compiler)
 					});
 				}
 
@@ -270,7 +312,7 @@ namespace Proxima.Graphics
 							sType = VkStructureType.PipelineShaderStageCreateInfo,
 							stage = EntryPointModeToStage(entryPoint.Mode),
 							module = shaderModule,
-							pName = new VkString(entryPoint.Name)
+							pName = new VString(entryPoint.Name)
 						};
 						Stages.Add(createInfo);
 					}

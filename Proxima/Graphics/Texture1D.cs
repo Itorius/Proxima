@@ -7,6 +7,19 @@ namespace Proxima.Graphics
 {
 	public class Texture1D : Texture
 	{
+		public struct Options
+		{
+			public VkFormat ImageFormat;
+			public VkFilter MagFilter;
+			public VkFilter MinFilter;
+			public VkSamplerAddressMode AddressU;
+			public VkSamplerAddressMode AddressV;
+			public VkSamplerAddressMode AddressW;
+			public bool EnableAnisotropy;
+			public int MaxAnisotropy;
+			public int MipmapLevels;
+		}
+		
 		public unsafe Texture1D(GraphicsDevice graphicsDevice, string path) : base(graphicsDevice)
 		{
 			using var stream = File.OpenRead(path);

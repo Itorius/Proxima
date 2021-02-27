@@ -18,6 +18,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "shaderc.net", "..\shaderc.n
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ImGui.NET", "..\ImGui.NET\src\ImGui.NET\ImGui.NET.csproj", "{769163B2-B455-4FA3-91C4-EE9349FBFBE8}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VulkanGenerator", "VulkanGenerator\VulkanGenerator.csproj", "{C93B5683-15A1-40B1-9CCC-9D6C7DA6C3E4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Fireburst", "VulkanGenerator\Generated\Fireburst.csproj", "{D23BAAA2-80B5-4C1C-AD3B-B61C1603351E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -56,6 +60,14 @@ Global
 		{769163B2-B455-4FA3-91C4-EE9349FBFBE8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{769163B2-B455-4FA3-91C4-EE9349FBFBE8}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{769163B2-B455-4FA3-91C4-EE9349FBFBE8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C93B5683-15A1-40B1-9CCC-9D6C7DA6C3E4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C93B5683-15A1-40B1-9CCC-9D6C7DA6C3E4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C93B5683-15A1-40B1-9CCC-9D6C7DA6C3E4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C93B5683-15A1-40B1-9CCC-9D6C7DA6C3E4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D23BAAA2-80B5-4C1C-AD3B-B61C1603351E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D23BAAA2-80B5-4C1C-AD3B-B61C1603351E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D23BAAA2-80B5-4C1C-AD3B-B61C1603351E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D23BAAA2-80B5-4C1C-AD3B-B61C1603351E}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{3C35B91D-0460-411B-B749-3294F26BEE65} = {2B6E1ABD-7C06-472F-8003-792D721E403F}

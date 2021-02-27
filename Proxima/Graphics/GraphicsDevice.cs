@@ -10,7 +10,7 @@ namespace Proxima.Graphics
 {
 	public sealed partial class GraphicsDevice : IDisposable
 	{
-		private static readonly VkStringArray DeviceExtensions = new VkStringArray(new[] { Vulkan.KHRSwapchainExtensionName });
+		private static readonly VkStringArray DeviceExtensions = new(new[] { Vulkan.KHRSwapchainExtensionName });
 
 		internal readonly NativeWindow window;
 
@@ -23,11 +23,11 @@ namespace Proxima.Graphics
 		internal VkCommandPool CommandPool;
 
 		internal VkSurfaceKHR Surface;
-		internal VulkanSwapchain Swapchain;
+		internal Swapchain Swapchain;
 
-		internal VulkanRenderPass RenderPass;
+		internal RenderPass RenderPass;
 
-		internal VkFramebuffer[] Framebuffers;
+		internal FrameBuffer[] Framebuffers;
 		private DepthBuffer DepthBuffer;
 
 		private int currentFrame;
@@ -50,7 +50,7 @@ namespace Proxima.Graphics
 		public void SetVerticalSync(bool vsync) => this.vsync = vsync;
 		
 		public uint CurrentFrameIndex { get; private set; }
-		private List<VkCommandBuffer> secondaryBuffers = new List<VkCommandBuffer>();
+		private List<VkCommandBuffer> secondaryBuffers = new();
 
 		public unsafe VkCommandBuffer GetSecondaryBuffer()
 		{
@@ -69,10 +69,10 @@ namespace Proxima.Graphics
 
 		public void SubmitSecondaryBuffer(VkCommandBuffer buffer) => secondaryBuffers.Add(buffer);
 
-		public VkCommandBufferInheritanceInfo GetInheritanceInfo() => new VkCommandBufferInheritanceInfo
+		public VkCommandBufferInheritanceInfo GetInheritanceInfo() => new()
 		{
 			sType = VkStructureType.CommandBufferInheritanceInfo,
-			framebuffer = Framebuffers[CurrentFrameIndex],
+			framebuffer = (VkFramebuffer)Framebuffers[CurrentFrameIndex],
 			renderPass = (VkRenderPass)RenderPass
 		};
 
@@ -89,7 +89,7 @@ namespace Proxima.Graphics
 			//
 			// Vulkan.vkResetFences(LogicalDevice, InFlightFences[currentFrame]);
 
-			VkResult result = Vulkan.vkAcquireNextImageKHR(LogicalDevice, Swapchain.Swapchain, uint.MaxValue, ImageAvailableSemaphores[currentFrame], VkFence.Null, out var currentFrameIndex);
+			VkResult result = Vulkan.vkAcquireNextImageKHR(LogicalDevice, Swapchain.swapchain, uint.MaxValue, ImageAvailableSemaphores[currentFrame], VkFence.Null, out var currentFrameIndex);
 			CurrentFrameIndex = currentFrameIndex;
 			if (result == VkResult.ErrorOutOfDateKHR)
 			{
@@ -121,7 +121,7 @@ namespace Proxima.Graphics
 			{
 				sType = VkStructureType.RenderPassBeginInfo,
 				renderPass = (VkRenderPass)RenderPass,
-				framebuffer = Framebuffers[currentFrameIndex],
+				framebuffer = (VkFramebuffer)Framebuffers[currentFrameIndex],
 				renderArea = new VkRect2D(0, 0, Swapchain.Extent.width, Swapchain.Extent.height),
 				clearValueCount = (uint)clearValues.Length
 			};
@@ -179,7 +179,7 @@ namespace Proxima.Graphics
 			presentInfo.pImageIndices = &currentFrameIndex;
 			fixed (VkSemaphore* ptr = signalSemaphores) presentInfo.pWaitSemaphores = ptr;
 
-			VkSwapchainKHR[] swapchains = { Swapchain.Swapchain };
+			VkSwapchainKHR[] swapchains = { Swapchain.swapchain };
 			fixed (VkSwapchainKHR* ptr = swapchains) presentInfo.pSwapchains = ptr;
 
 			VkResult result = Vulkan.vkQueuePresentKHR(PresentQueue, &presentInfo);
@@ -202,7 +202,7 @@ namespace Proxima.Graphics
 
 			Vulkan.vkResetCommandPool(LogicalDevice, CommandPool, VkCommandPoolResetFlags.ReleaseResources).CheckResult();
 
-			foreach (VkFramebuffer framebuffer in Framebuffers) Vulkan.vkDestroyFramebuffer(LogicalDevice, framebuffer, null);
+			foreach (FrameBuffer framebuffer in Framebuffers) framebuffer.Dispose();
 
 			RenderPass.Dispose();
 			Swapchain.Dispose();

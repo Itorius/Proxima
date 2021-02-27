@@ -35,6 +35,8 @@ namespace Proxima
 			{
 				if (args.Key == Keys.Escape) Glfw.SetWindowShouldClose(Window, true);
 			};
+			
+			Input.Initialize(Window);
 
 			GraphicsDevice = new GraphicsDevice(Window);
 			GraphicsDevice.SetVerticalSync(options.VSync);
